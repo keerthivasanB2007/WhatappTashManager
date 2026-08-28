@@ -1,4 +1,4 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:5000`;
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://whatapptashmanager-api.onrender.com/api";
 
 const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -9,7 +9,7 @@ const getHeaders = () => {
 };
 
 export const getTasks = async (query = "") => {
-    let url = `${API_BASE_URL}/api/tasks`;
+    let url = `${API_BASE_URL}/tasks`;
     if (query) url += `?${query}`;
     const res = await fetch(url, { headers: getHeaders() });
     if (!res.ok && res.status === 401) {
@@ -20,13 +20,12 @@ export const getTasks = async (query = "") => {
 };
 
 export const getReminders = async () => {
-    // Public endpoint structure per plan
-    const res = await fetch(`${API_BASE_URL}/api/reminders`);
+    const res = await fetch(`${API_BASE_URL}/reminders`, { headers: { 'Content-Type': 'application/json' } });
     return res.json();
 };
 
 export const updateTaskStatus = async (id, status) => {
-    const res = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/tasks/${id}`, {
         method: "PATCH",
         headers: getHeaders(),
         body: JSON.stringify({ status })
@@ -35,7 +34,7 @@ export const updateTaskStatus = async (id, status) => {
 };
 
 export const deleteTask = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/tasks/${id}`, {
         method: "DELETE",
         headers: getHeaders()
     });
@@ -43,7 +42,7 @@ export const deleteTask = async (id) => {
 };
 
 export const loginAuth = async (email, password) => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
