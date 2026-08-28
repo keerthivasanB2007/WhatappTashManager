@@ -1,0 +1,33 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Android
+.gradle/
+build/
+*/build/
+local.properties
+*.jks
+*.keystore
+
+# React/Vite
+dashboard/dist/
+
+# Backend local data/backups
+backend/data/*.bak
+backend/data/*-backup
+backend/data/tasks.json
+
+# IDE
+.idea/
+*.iml
+
+# Logs
+*.log

@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Task {
+  id              String    @id @default(uuid())
+  source          String
+  sender          String
+  originalMessage String
+  task            String?
+  category        String
+  priority        String
+  deadline        DateTime?
+  status          String    @default("PENDING")
+  createdAt       DateTime  @default(now())
+  receivedAt      DateTime?
+  reminderSent    Boolean   @default(false)
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}

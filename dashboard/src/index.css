@@ -1,0 +1,269 @@
+:root {
+  --primary: #4F46E5;
+  --bg-color: #F9FAFB;
+  --card-bg: #FFFFFF;
+  --text-dark: #111827;
+  --text-muted: #6B7280;
+  --border: #E5E7EB;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-dark);
+}
+
+.dashboard-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.header {
+  margin-bottom: 30px;
+}
+
+.header h1 {
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+}
+
+.summary-cards {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.card {
+  background: var(--card-bg);
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  flex: 1;
+  text-align: center;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.card-val {
+  font-size: 1.5rem;
+  font-weight: 700;
+  display: block;
+  margin-top: 5px;
+  color: var(--text-dark);
+}
+
+.overdue-card {
+  border-color: #FCA5A5;
+  background-color: #FEF2F2;
+  color: #B91C1C;
+}
+.overdue-card .card-val {
+  color: #B91C1C;
+}
+
+.reminders-banner {
+  background-color: #FEF3C7;
+  border-left: 4px solid #F59E0B;
+  padding: 15px;
+  margin-top: 20px;
+  border-radius: 4px;
+}
+.reminders-title {
+  color: #B45309;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 8px;
+}
+.reminders-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #92400E;
+  font-size: 0.9rem;
+}
+.reminders-list li {
+  margin-bottom: 5px;
+}
+
+.search-bar {
+  margin-bottom: 15px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.filters button {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.filters button.active, .filters button:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.task-section {
+  margin-bottom: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 5px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.section-title.overdue { color: #DC2626; border-bottom-color: #FCA5A5; }
+.section-title.today { color: #D97706; border-bottom-color: #FCD34D; }
+.section-title.tomorrow { color: #2563EB; border-bottom-color: #93C5FD; }
+.section-title.upcoming { color: #4B5563; }
+.section-title.completed { color: #059669; border-bottom-color: #6EE7B7; }
+
+.task-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.task-card {
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  border: 1px solid var(--border);
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.task-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.badge {
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.badge.pending { color: #D97706; }
+.badge.completed { color: #059669; }
+
+.original-message {
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 10px 0;
+  line-height: 1.5;
+}
+
+.sender {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 15px;
+}
+
+.task-meta {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap; 
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}
+
+.priority-badge.high { color: #DC2626; font-weight: 600; }
+.priority-badge.medium { color: #D97706; font-weight: 600; }
+.priority-badge.low { color: #6B7280; font-weight: 600; }
+
+.deadline-badge, .category-badge, .received-badge {
+  color: var(--text-dark);
+}
+
+.task-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.task-actions button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+.task-actions button:hover {
+  opacity: 0.9;
+}
+
+.complete-btn {
+  background: #10B981;
+  color: white;
+}
+
+.delete-btn {
+  background: #EF4444;
+  color: white;
+}
+
+.error-banner {
+  background: #FEE2E2;
+  color: #B91C1C;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.error-banner button {
+  margin-top: 10px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #B91C1C;
+  color: #B91C1C;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.loading, .empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px;
+}
