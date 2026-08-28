@@ -33,8 +33,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Option B: Serve Dashboard statically natively for simplified deployment mapping
-app.use(express.static(path.join(__dirname, '../../dashboard/dist')));
+// Decoupled architecture natively targeting distributed cloud origins.
 
 // Initialize Gemini
 let genAI = null;
@@ -315,11 +314,9 @@ app.post('/api/reminders/:taskId/sent', async (req, res) => {
     }
 });
 
-app.use((req, res, next) => {
-    if (req.method === 'GET' && !req.path.startsWith('/api/')) {
-        return res.sendFile(path.join(__dirname, '../../dashboard/dist/index.html'));
-    }
-    next();
+// Root fallback
+app.get('/', (req, res) => {
+    res.json({ message: "WhatsAppTaskManager API backend operational" });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
