@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getTasks, updateTaskStatus, deleteTask, getReminders } from './api/tasksApi';
+import { getTasks, updateTaskStatus, deleteTask, getReminders, checkHealth } from './api/tasksApi';
 import Login from './components/Login.jsx';
 
 export default function App() {
@@ -12,6 +12,8 @@ export default function App() {
   const [filter, setFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [reminders, setReminders] = useState([]);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [backendStatus, setBackendStatus] = useState('Checking...');
 
   const fetchTasks = async () => {
     try {
@@ -49,21 +51,34 @@ export default function App() {
   };
 
   useEffect(() => {
+    let mounted = true;
+    checkHealth()
+      .then(() => mounted && setBackendStatus('Connected'))
+      .catch(() => mounted && setBackendStatus('Offline'));
+    return () => (mounted = false);
+  }, []);
+
+  useEffect(() => {
     if (isAuthenticated) {
         fetchTasks();
     }
   }, [filter, isAuthenticated]);
 
-  const handleStatusChange = async (id, newStatus) => {
+  const handleStatusChange = async (e, id, newStatus) => {
+    e.stopPropagation();
     try {
       await updateTaskStatus(id, newStatus);
       fetchTasks();
+      if (selectedTask && selectedTask.id === id) {
+        setSelectedTask(prev => ({...prev, status: newStatus}));
+      }
     } catch (err) {
       alert(err.message);
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (e, id) => {
+    e.stopPropagation();
     if (window.confirm("Are you sure you want to delete this task?")) {
       try {
         await deleteTask(id);
@@ -123,14 +138,14 @@ export default function App() {
   };
 
   const renderTaskCard = (task) => (
-    <div className="task-item" key={task.id}>
+    <div className="task-item" key={task.id} onClick={() => setSelectedTask(task)}>
       <div className="task-item-header">
         <h3 className="task-title">{task.task || 'Unnamed Task'}</h3>
         <span className={`task-status-badge badge-${task.status.toLowerCase()}`}>{task.status}</span>
       </div>
       
       {task.originalMessage && (
-        <p className="task-original">"{task.originalMessage}"</p>
+        <p className="task-original">"{task.originalMessage.length > 80 ? task.originalMessage.substring(0, 80) + '...' : task.originalMessage}"</p>
       )}
 
       <div className="task-meta-row">
@@ -156,12 +171,28 @@ export default function App() {
 
       <div className="task-actions-row">
         {task.status === 'PENDING' ? (
-          <button className="btn-action btn-complete" onClick={() => handleStatusChange(task.id, 'COMPLETED')}>Complete</button>
+          <button className="btn-action btn-complete" onClick={(e) => handleStatusChange(e, task.id, 'COMPLETED')}>Complete</button>
         ) : (
-          <button className="btn-action btn-pending" onClick={() => handleStatusChange(task.id, 'PENDING')}>Mark Pending</button>
+          <button className="btn-action btn-pending" onClick={(e) => handleStatusChange(e, task.id, 'PENDING')}>Mark Pending</button>
         )}
-        <button className="btn-action btn-delete" onClick={() => handleDelete(task.id)}>Delete</button>
+        <button className="btn-action btn-delete" onClick={(e) => handleDelete(e, task.id)}>Delete</button>
       </div>
+    </div>
+  );
+
+  const renderSkeleton = () => (
+    <div className="task-list-grid">
+      {[1, 2, 3].map(i => (
+        <div className="task-item skeleton-item" key={i}>
+          <div className="skeleton-title"></div>
+          <div className="skeleton-text"></div>
+          <div className="skeleton-text short"></div>
+          <div className="skeleton-row">
+            <div className="skeleton-chip"></div>
+            <div className="skeleton-chip"></div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 
@@ -179,17 +210,17 @@ export default function App() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h2>WhatsApp Task Manager</h2>
+          <h2>WhatsAppTaskManager</h2>
           <p>Your tasks captured from WhatsApp, organized in one place.</p>
         </div>
         <nav className="sidebar-nav">
-          <div className="nav-item active"><span className="nav-icon">⊞</span> Dashboard</div>
-          <div className="nav-item"><span className="nav-icon">✓</span> Tasks</div>
-          <div className="nav-item"><span className="nav-icon">📅</span> Calendar</div>
-          <div className="nav-item"><span className="nav-icon">📊</span> Analytics</div>
-          <div className="nav-item"><span className="nav-icon">⚡</span> Activity</div>
-          <div className="nav-item" style={{marginTop: 'auto', marginBottom: '8px'}}><span className="nav-icon">⚙</span> Settings</div>
+          <div className="nav-item active"><span className="nav-icon">⊞</span> Tasks</div>
         </nav>
+        <div className="sidebar-footer">
+          <div className={`status-indicator ${backendStatus === 'Connected' ? 'status-online' : backendStatus === 'Offline' ? 'status-offline' : ''}`}>
+            <span className="status-dot"></span> Backend {backendStatus}
+          </div>
+        </div>
       </aside>
 
       {/* Main Content */}
@@ -256,17 +287,21 @@ export default function App() {
           </div>
 
           <div className="task-list">
-            {loading && <div className="loading-state">Loading tasks...</div>}
+            {loading && renderSkeleton()}
             {error && (
               <div className="error-banner">
-                {error}
+                <div>Unable to load tasks</div>
+                <div style={{fontSize: '0.8rem', opacity: 0.8, margin: '4px 0 12px 0'}}>Please check your backend connection and try again.</div>
                 <div><button className="btn-retry" onClick={fetchTasks}>Retry</button></div>
               </div>
             )}
             
             {!loading && !error && searchedTasks.length === 0 && (
               <div className="empty-state">
-                {searchQuery ? 'No tasks match your search.' : filter === 'PENDING' ? 'No pending tasks.' : filter === 'COMPLETED' ? 'No completed tasks.' : 'Messages containing actionable tasks will appear here automatically.'}
+                <div className="empty-state-title">No tasks yet</div>
+                <div className="empty-state-text">
+                  {searchQuery ? 'No tasks match your search.' : filter === 'PENDING' ? 'No pending tasks found.' : filter === 'COMPLETED' ? 'No completed tasks found.' : 'When WhatsApp messages containing actionable tasks are detected, they\'ll appear here.'}
+                </div>
               </div>
             )}
 
@@ -317,6 +352,67 @@ export default function App() {
           </div>
         </section>
       </main>
+
+      {/* Task Details Modal */}
+      {selectedTask && (
+        <div className="modal-overlay" onClick={() => setSelectedTask(null)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>TASK DETAILS</h2>
+              <button className="modal-close" onClick={() => setSelectedTask(null)}>✕</button>
+            </div>
+            <div className="modal-content">
+              <h3 className="modal-task-title">{selectedTask.task || 'Unnamed Task'}</h3>
+              
+              <div className="modal-meta-grid">
+                <div className="modal-meta-item">
+                  <span className="modal-meta-label">Priority</span>
+                  <span className={`modal-meta-value priority-${selectedTask.priority?.toLowerCase() || 'low'}`}>{selectedTask.priority || 'LOW'} PRIORITY</span>
+                </div>
+                <div className="modal-meta-item">
+                  <span className="modal-meta-label">Status</span>
+                  <span className={`modal-meta-value badge-${selectedTask.status.toLowerCase()}`}>{selectedTask.status}</span>
+                </div>
+                <div className="modal-meta-item">
+                  <span className="modal-meta-label">Deadline</span>
+                  <span className="modal-meta-value">{formatDate(selectedTask.deadline)}</span>
+                </div>
+                <div className="modal-meta-item">
+                  <span className="modal-meta-label">Category</span>
+                  <span className="modal-meta-value">{selectedTask.category || 'N/A'}</span>
+                </div>
+                <div className="modal-meta-item">
+                  <span className="modal-meta-label">Source</span>
+                  <span className="modal-meta-value">{selectedTask.source || 'WhatsApp'}</span>
+                </div>
+                <div className="modal-meta-item">
+                  <span className="modal-meta-label">Sender</span>
+                  <span className="modal-meta-value">{selectedTask.sender}</span>
+                </div>
+              </div>
+
+              <div className="modal-divider"></div>
+
+              <div className="modal-original-msg">
+                <span className="modal-meta-label">Original message</span>
+                <p>"{selectedTask.originalMessage}"</p>
+              </div>
+              
+              <div className="modal-actions">
+                <span className="modal-actions-label">Actions:</span>
+                <div className="task-actions-row" style={{marginTop: 0}}>
+                  {selectedTask.status === 'PENDING' ? (
+                    <button className="btn-action btn-complete" onClick={(e) => handleStatusChange(e, selectedTask.id, 'COMPLETED')}>Complete</button>
+                  ) : (
+                    <button className="btn-action btn-pending" onClick={(e) => handleStatusChange(e, selectedTask.id, 'PENDING')}>Mark Pending</button>
+                  )}
+                  <button className="btn-action btn-delete" onClick={(e) => handleDelete(e, selectedTask.id)}>Delete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

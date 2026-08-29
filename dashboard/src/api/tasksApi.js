@@ -49,3 +49,9 @@ export const loginAuth = async (email, password) => {
     });
     return res.json();
 };
+
+export const checkHealth = async () => {
+    const baseUrl = API_BASE_URL.replace(/\/api\/?$/, '');
+    const res = await fetch(`${baseUrl}/health`);
+    return res.json();
+};
