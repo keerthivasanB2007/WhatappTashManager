@@ -117,6 +117,10 @@ fun MainScreen(modifier: Modifier = Modifier) {
             
             Spacer(modifier = Modifier.height(12.dp))
             
+            DashboardAccessSection()
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
             BackendTestSection()
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -187,6 +191,61 @@ fun NotificationAccessSection() {
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text("Settings", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardAccessSection() {
+    val context = LocalContext.current
+    val DASHBOARD_URL = "<DASHBOARD_URL>"
+    
+    PrecisionCard {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Dashboard",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "View and manage your tasks.",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    try {
+                        var finalUrl = DASHBOARD_URL
+                        if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) {
+                            finalUrl = "https://$finalUrl"
+                        }
+                        val uri = android.net.Uri.parse(finalUrl)
+                        val intent = Intent(Intent.ACTION_VIEW, uri)
+                        context.startActivity(intent)
+                    } catch (e: android.content.ActivityNotFoundException) {
+                        android.widget.Toast.makeText(context, "No browser found to open dashboard", android.widget.Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        android.widget.Toast.makeText(context, "Invalid dashboard URL", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryDark, contentColor = SurfaceWhite),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
+            ) {
+                Text("Open Dashboard", fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
