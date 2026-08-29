@@ -10,10 +10,16 @@ export default function App() {
   const [error, setError] = useState(null);
   
   const [filter, setFilter] = useState('ALL');
+  const [sortBy, setSortBy] = useState('recent');
   const [searchQuery, setSearchQuery] = useState('');
   const [reminders, setReminders] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   const [backendStatus, setBackendStatus] = useState('Checking...');
+  const [currentView, setCurrentView] = useState('TASKS'); // 'TASKS' or 'CALENDAR'
+  
+  // Calendar States
+  const [calendarDate, setCalendarDate] = useState(new Date());
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
 
   const fetchTasks = async () => {
     try {
@@ -21,19 +27,9 @@ export default function App() {
       setError(null);
       
       const globalData = await getTasks();
-      setGlobalTasks(globalData.tasks || []);
-
-      let query = '';
-      if (filter === 'PENDING') query = 'status=PENDING';
-      else if (filter === 'COMPLETED') query = 'status=COMPLETED';
-      else if (filter === 'HIGH') query = 'priority=HIGH';
-
-      if (query === '') {
-         setFilteredTasks(globalData.tasks || []);
-      } else {
-         const data = await getTasks(query);
-         setFilteredTasks(data.tasks || []);
-      }
+      const fetchedTasks = globalData.tasks || [];
+      setGlobalTasks(fetchedTasks);
+      setFilteredTasks(fetchedTasks);
 
       // Fetch active reminders
       try {
@@ -62,7 +58,7 @@ export default function App() {
     if (isAuthenticated) {
         fetchTasks();
     }
-  }, [filter, isAuthenticated]);
+  }, [isAuthenticated]);
 
   const handleStatusChange = async (e, id, newStatus) => {
     e.stopPropagation();
@@ -119,22 +115,52 @@ export default function App() {
   };
 
   const query = searchQuery.toLowerCase();
-  const searchedTasks = filteredTasks.filter(t => {
-    if (!query) return true;
-    return (
-      (t.task && t.task.toLowerCase().includes(query)) ||
-      (t.originalMessage && t.originalMessage.toLowerCase().includes(query)) ||
-      (t.sender && t.sender.toLowerCase().includes(query)) ||
-      (t.category && t.category.toLowerCase().includes(query))
-    );
+  
+  let fullyProcessedTasks = globalTasks.filter(t => {
+    // 1. Text Search
+    if (query) {
+      const match = (t.task && t.task.toLowerCase().includes(query)) ||
+        (t.originalMessage && t.originalMessage.toLowerCase().includes(query)) ||
+        (t.sender && t.sender.toLowerCase().includes(query)) ||
+        (t.category && t.category.toLowerCase().includes(query));
+      if (!match) return false;
+    }
+
+    // 2. State Filters
+    if (filter === 'PENDING' && t.status !== 'PENDING') return false;
+    if (filter === 'COMPLETED' && t.status !== 'COMPLETED') return false;
+    if (filter === 'HIGH' && t.priority !== 'HIGH') return false;
+    if (filter === 'DUE_TODAY' && getTaskCategory(t) !== 'TODAY') return false;
+    if (filter === 'OVERDUE' && getTaskCategory(t) !== 'OVERDUE') return false;
+    
+    return true;
+  });
+
+  // 3. Sorting
+  fullyProcessedTasks.sort((a, b) => {
+    if (sortBy === 'deadline') {
+       if (!a.deadline && !b.deadline) return 0;
+       if (!a.deadline) return 1;
+       if (!b.deadline) return -1;
+       return new Date(a.deadline) - new Date(b.deadline);
+    } else if (sortBy === 'priority') {
+       const p = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+       const pA = p[a.priority] || 1;
+       const pB = p[b.priority] || 1;
+       if (pA !== pB) return pB - pA;
+       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    } else {
+       // recent
+       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    }
   });
 
   const sections = {
-    OVERDUE: searchedTasks.filter(t => getTaskCategory(t) === 'OVERDUE'),
-    TODAY: searchedTasks.filter(t => getTaskCategory(t) === 'TODAY'),
-    TOMORROW: searchedTasks.filter(t => getTaskCategory(t) === 'TOMORROW'),
-    UPCOMING: searchedTasks.filter(t => getTaskCategory(t) === 'UPCOMING'),
-    COMPLETED: searchedTasks.filter(t => getTaskCategory(t) === 'COMPLETED')
+    OVERDUE: fullyProcessedTasks.filter(t => getTaskCategory(t) === 'OVERDUE'),
+    TODAY: fullyProcessedTasks.filter(t => getTaskCategory(t) === 'TODAY'),
+    TOMORROW: fullyProcessedTasks.filter(t => getTaskCategory(t) === 'TOMORROW'),
+    UPCOMING: fullyProcessedTasks.filter(t => getTaskCategory(t) === 'UPCOMING'),
+    COMPLETED: fullyProcessedTasks.filter(t => getTaskCategory(t) === 'COMPLETED')
   };
 
   const renderTaskCard = (task) => (
@@ -205,6 +231,112 @@ export default function App() {
      return <Login onLogin={() => setIsAuthenticated(true)} />;
   }
 
+  const renderCalendar = () => {
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthName = calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    
+    // Build days array mapping
+    const days = [];
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+
+    const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+    // Group tasks per date
+    const tasksByDate = {};
+    globalTasks.forEach(t => {
+      if (!t.deadline) return;
+      const d = new Date(t.deadline);
+      if (isNaN(d.getTime())) return;
+      
+      const localStr = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!tasksByDate[localStr]) tasksByDate[localStr] = [];
+      tasksByDate[localStr].push(t);
+    });
+
+    return (
+      <div className="calendar-view">
+        <div className="calendar-header">
+          <h2>{monthName}</h2>
+          <div className="calendar-nav-btns">
+            <button className="cal-nav-btn" onClick={() => setCalendarDate(new Date(year, month - 1, 1))}>&lt;</button>
+            <button className="cal-today-btn" onClick={() => { setCalendarDate(new Date()); setSelectedCalendarDate(new Date()); }}>Today</button>
+            <button className="cal-nav-btn" onClick={() => setCalendarDate(new Date(year, month + 1, 1))}>&gt;</button>
+          </div>
+        </div>
+        
+        <div className="calendar-grid-header">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
+        </div>
+        
+        <div className="calendar-grid">
+          {days.map((day, idx) => {
+            if (!day) return <div key={`empty-${idx}`} className="cal-cell empty"></div>;
+            
+            const localStr = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+            const dayTasks = tasksByDate[localStr] || [];
+            const isToday = day.getTime() === todayMs;
+            const isSelected = selectedCalendarDate && day.getTime() === new Date(selectedCalendarDate.getFullYear(), selectedCalendarDate.getMonth(), selectedCalendarDate.getDate()).getTime();
+            const isPast = day.getTime() < todayMs;
+            
+            let cellClass = "cal-cell";
+            if (isToday) cellClass += " is-today";
+            if (isSelected) cellClass += " is-selected";
+            
+            return (
+              <div key={localStr} className={cellClass} onClick={() => setSelectedCalendarDate(day)}>
+                <div className="cal-date-num">{day.getDate()}</div>
+                <div className="cal-indicators">
+                  {dayTasks.length > 0 && dayTasks.slice(0, 3).map((t, i) => {
+                     const isCompleted = t.status === 'COMPLETED';
+                     return (
+                       <div key={i} className={`cal-task-dot ${isCompleted ? 'cal-task-completed' : `priority-${t.priority?.toLowerCase() || 'low'}`}`} title={t.task}>
+                          {t.task}
+                       </div>
+                     );
+                  })}
+                  {dayTasks.length > 3 && (
+                     <div className="cal-task-more">+{dayTasks.length - 3} more</div>
+                  )}
+                  {dayTasks.length > 0 && isPast && (
+                     <div className="cal-overdue-alert">Overdue</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* Render Selected Day Tasks */}
+        {selectedCalendarDate && (
+          <div className="calendar-selected-tasks">
+            <h3>Tasks for {selectedCalendarDate.toLocaleString('default', { month: 'short', day: 'numeric', year: 'numeric' })}</h3>
+            <div className="task-list-grid">
+              {globalTasks.filter(t => {
+                if (!t.deadline) return false;
+                const d = new Date(t.deadline);
+                if (isNaN(d.getTime())) return false;
+                return d.getFullYear() === selectedCalendarDate.getFullYear() && d.getMonth() === selectedCalendarDate.getMonth() && d.getDate() === selectedCalendarDate.getDate();
+              }).length === 0 ? (
+                <div className="empty-state" style={{padding: '24px'}}>No pending tasks here.</div>
+              ) : (
+                globalTasks.filter(t => {
+                  if (!t.deadline) return false;
+                  const d = new Date(t.deadline);
+                  if (isNaN(d.getTime())) return false;
+                  return d.getFullYear() === selectedCalendarDate.getFullYear() && d.getMonth() === selectedCalendarDate.getMonth() && d.getDate() === selectedCalendarDate.getDate();
+                }).map(renderTaskCard)
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="app-layout">
       {/* Sidebar */}
@@ -214,7 +346,12 @@ export default function App() {
           <p>Your tasks captured from WhatsApp, organized in one place.</p>
         </div>
         <nav className="sidebar-nav">
-          <div className="nav-item active"><span className="nav-icon">⊞</span> Tasks</div>
+          <div className={`nav-item ${currentView === 'TASKS' ? 'active' : ''}`} onClick={() => setCurrentView('TASKS')} style={{cursor: 'pointer'}}>
+            <span className="nav-icon">⊞</span> Tasks
+          </div>
+          <div className={`nav-item ${currentView === 'CALENDAR' ? 'active' : ''}`} onClick={() => setCurrentView('CALENDAR')} style={{cursor: 'pointer'}}>
+            <span className="nav-icon">📅</span> Calendar
+          </div>
         </nav>
         <div className="sidebar-footer">
           <div className={`status-indicator ${backendStatus === 'Connected' ? 'status-online' : backendStatus === 'Offline' ? 'status-offline' : ''}`}>
@@ -273,83 +410,96 @@ export default function App() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <div className="filters-group">
-              {['ALL', 'PENDING', 'COMPLETED', 'HIGH'].map(f => (
-                <button 
-                  key={f} 
-                  className={`filter-btn ${filter === f ? 'active' : ''}`} 
-                  onClick={() => setFilter(f)}
-                >
-                  {f === 'HIGH' ? 'High Priority' : f === 'ALL' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
-                </button>
-              ))}
+            <div className="filters-group" style={{alignItems: 'center', display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+              <div style={{display: 'flex', gap: '4px', overflowX: 'auto'}}>
+                {['ALL', 'PENDING', 'COMPLETED', 'HIGH', 'DUE_TODAY', 'OVERDUE'].map(f => (
+                  <button 
+                    key={f} 
+                    className={`filter-btn ${filter === f ? 'active' : ''}`} 
+                    onClick={() => setFilter(f)}
+                  >
+                    {f === 'HIGH' ? 'High Priority' : f === 'DUE_TODAY' ? 'Due Today' : f === 'OVERDUE' ? 'Overdue' : f === 'ALL' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+              <div className="sort-group">
+                <select className="sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                  <option value="recent">Recent</option>
+                  <option value="deadline">Deadline</option>
+                  <option value="priority">Priority</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <div className="task-list">
-            {loading && renderSkeleton()}
-            {error && (
-              <div className="error-banner">
-                <div>Unable to load tasks</div>
-                <div style={{fontSize: '0.8rem', opacity: 0.8, margin: '4px 0 12px 0'}}>Please check your backend connection and try again.</div>
-                <div><button className="btn-retry" onClick={fetchTasks}>Retry</button></div>
-              </div>
-            )}
-            
-            {!loading && !error && searchedTasks.length === 0 && (
-              <div className="empty-state">
-                <div className="empty-state-title">No tasks yet</div>
-                <div className="empty-state-text">
-                  {searchQuery ? 'No tasks match your search.' : filter === 'PENDING' ? 'No pending tasks found.' : filter === 'COMPLETED' ? 'No completed tasks found.' : 'When WhatsApp messages containing actionable tasks are detected, they\'ll appear here.'}
+          {currentView === 'TASKS' ? (
+            <div className="task-list">
+              {loading && renderSkeleton()}
+              {error && (
+                <div className="error-banner">
+                  <div>Unable to load tasks</div>
+                  <div style={{fontSize: '0.8rem', opacity: 0.8, margin: '4px 0 12px 0'}}>Please check your backend connection and try again.</div>
+                  <div><button className="btn-retry" onClick={fetchTasks}>Retry</button></div>
                 </div>
-              </div>
-            )}
+              )}
+              
+              {!loading && !error && fullyProcessedTasks.length === 0 && (
+                <div className="empty-state">
+                  <div className="empty-state-title">No tasks yet</div>
+                  <div className="empty-state-text">
+                    {searchQuery ? 'No tasks match your search.' : filter === 'PENDING' ? 'No pending tasks found.' : filter === 'COMPLETED' ? 'No completed tasks found.' : 'When WhatsApp messages containing actionable tasks are detected, they\'ll appear here.'}
+                  </div>
+                </div>
+              )}
 
-            {!loading && !error && (
-              <>
-                {sections.OVERDUE.length > 0 && (
-                  <div className="task-section">
-                    <div className="section-label" style={{color: 'var(--status-overdue)'}}>Overdue</div>
-                    <div className="task-list-grid">
-                       {sections.OVERDUE.map(renderTaskCard)}
+              {!loading && !error && (
+                <>
+                  {sections.OVERDUE.length > 0 && (
+                    <div className="task-section">
+                      <div className="section-label" style={{color: 'var(--status-overdue)'}}>Overdue</div>
+                      <div className="task-list-grid">
+                         {sections.OVERDUE.map(renderTaskCard)}
+                      </div>
                     </div>
-                  </div>
-                )}
-                {sections.TODAY.length > 0 && (
-                  <div className="task-section">
-                    <div className="section-label">Today</div>
-                    <div className="task-list-grid">
-                       {sections.TODAY.map(renderTaskCard)}
+                  )}
+                  {sections.TODAY.length > 0 && (
+                    <div className="task-section">
+                      <div className="section-label">Today</div>
+                      <div className="task-list-grid">
+                         {sections.TODAY.map(renderTaskCard)}
+                      </div>
                     </div>
-                  </div>
-                )}
-                {sections.TOMORROW.length > 0 && (
-                  <div className="task-section">
-                    <div className="section-label">Tomorrow</div>
-                    <div className="task-list-grid">
-                       {sections.TOMORROW.map(renderTaskCard)}
+                  )}
+                  {sections.TOMORROW.length > 0 && (
+                    <div className="task-section">
+                      <div className="section-label">Tomorrow</div>
+                      <div className="task-list-grid">
+                         {sections.TOMORROW.map(renderTaskCard)}
+                      </div>
                     </div>
-                  </div>
-                )}
-                {sections.UPCOMING.length > 0 && (
-                  <div className="task-section">
-                    <div className="section-label">Upcoming</div>
-                    <div className="task-list-grid">
-                       {sections.UPCOMING.map(renderTaskCard)}
+                  )}
+                  {sections.UPCOMING.length > 0 && (
+                    <div className="task-section">
+                      <div className="section-label">Upcoming</div>
+                      <div className="task-list-grid">
+                         {sections.UPCOMING.map(renderTaskCard)}
+                      </div>
                     </div>
-                  </div>
-                )}
-                {sections.COMPLETED.length > 0 && (
-                  <div className="task-section">
-                    <div className="section-label">Completed</div>
-                    <div className="task-list-grid">
-                       {sections.COMPLETED.map(renderTaskCard)}
+                  )}
+                  {sections.COMPLETED.length > 0 && (
+                    <div className="task-section">
+                      <div className="section-label">Completed</div>
+                      <div className="task-list-grid">
+                         {sections.COMPLETED.map(renderTaskCard)}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            renderCalendar()
+          )}
         </section>
       </main>
 
@@ -380,6 +530,10 @@ export default function App() {
                 <div className="modal-meta-item">
                   <span className="modal-meta-label">Category</span>
                   <span className="modal-meta-value">{selectedTask.category || 'N/A'}</span>
+                </div>
+                <div className="modal-meta-item">
+                  <span className="modal-meta-label">Created Date</span>
+                  <span className="modal-meta-value">{formatDate(selectedTask.createdAt || selectedTask.receivedAt)}</span>
                 </div>
                 <div className="modal-meta-item">
                   <span className="modal-meta-label">Source</span>
