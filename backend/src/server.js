@@ -113,7 +113,7 @@ app.post('/api/messages', async (req, res) => {
         });
       }
 
-      const deduplicationKey = `${source}-${sender}-${message}-${receivedAt}`;
+      const deduplicationKey = `${source}-${sender}-${message}`;
       
       // 1. Race Condition Memory Lock
       if (activeProcessing.has(deduplicationKey)) {
