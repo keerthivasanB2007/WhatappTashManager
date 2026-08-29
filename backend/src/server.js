@@ -34,6 +34,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // Decoupled architecture natively targeting distributed cloud origins.
+const activeProcessing = new Set();
 
 // Initialize Groq
 let groq = null;
@@ -112,7 +113,38 @@ app.post('/api/messages', async (req, res) => {
         });
       }
 
-      let aiResult = null;
+      const deduplicationKey = `${source}-${sender}-${message}-${receivedAt}`;
+      
+      // 1. Race Condition Memory Lock
+      if (activeProcessing.has(deduplicationKey)) {
+          console.log(`\n⚠️ Duplicate message ignored - task already exists (active lock)`);
+          return res.json({ success: true, message: 'Duplicate message ignored - task already exists', classification: null, task: null });
+      }
+      activeProcessing.add(deduplicationKey);
+
+      // 2. Early Database Duplicate Check
+          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+          const duplicate = await prisma.task.findFirst({
+              where: {
+                  status: 'PENDING',
+                  sender,
+                  originalMessage: message,
+                  createdAt: { gte: fiveMinutesAgo }
+              }
+          });
+
+          if (duplicate) {
+              activeProcessing.delete(deduplicationKey);
+              console.log(`\n⚠️ Duplicate message ignored - task already exists`);
+              return res.json({
+                  success: true,
+                  message: 'Duplicate message ignored - task already exists',
+                  classification: null,
+                  task: duplicate
+              });
+          }
+
+          let aiResult = null;
 
       if (process.env.GROQ_API_KEY) {
           try {
@@ -126,16 +158,16 @@ Message from ${sender}:
 
 Extract the following information and return ONLY valid JSON matching this structure:
 {
-  "isImportant": boolean, // true if it contains a task, deadline, event, reminder, or important info
-  "isTask": boolean, // true if there is an actionable task
+  "isImportant": boolean, // true if it contains a task, scheduled event, deadline, meeting, exam, appointment, or important info
+  "isTask": boolean, // true if the message describes an actionable task OR any scheduled activity (e.g., exams, meetings, appointments, classes, events). Do not require imperative verbs (like "do", "submit"); declarative statements like "Flight exam tomorrow @10 in ALHC 304" MUST be classified as isTask: true. Casual info like "Tomorrow is a holiday" or "Marks were 10/20" is isTask: false.
   "category": "deadline" | "task" | "event" | "reminder" | "important_information" | "normal",
-  "task": string | null, // the task extracted, null if not a task
-  "deadline": string | null, // ISO8601 string resolved based on the reference time above, or null
-  "priority": "high" | "medium" | "low", // high if urgent/deadline, low if normal
+  "task": string | null, // the task or event title (e.g., "Flight exam in ALHC 304", "Team meeting"). Include the location in the title if present.
+  "deadline": string | null, // ISO8601 string resolved logically against the reference time above. Evaluate relative offsets like "tomorrow at 10" strictly. Null if none present.
+  "priority": "high" | "medium" | "low", // high if urgent/deadline/exam, low if normal
   "reason": string // brief explanation why you classified it this way
 }
 
-Do not invent tasks or deadlines if they are not present or inferable.
+Do not invent tasks, times, or deadlines if they are not inferable.
 Be lenient with casual chats (isImportant: false). 
 Respond with JSON only.`;
 
@@ -178,38 +210,24 @@ Task: ${aiResult.isTask}`);
       let finalTask = null;
 
       if (aiResult && aiResult.isTask) {
-          // Duplicate protection
-          const tasks = await taskStore.getTasks();
-          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-          
-          const duplicate = tasks.find(t => 
-              t.status === 'PENDING' && 
-              t.sender === sender && 
-              t.originalMessage === message && 
-              new Date(t.createdAt) > fiveMinutesAgo
-          );
-
-          if (duplicate) {
-              console.log(`\n⚠️ Duplicate task detected. Returning existing.`);
-              finalTask = duplicate;
-          } else {
-              finalTask = await taskStore.createTask({
-                  source,
-                  sender,
-                  originalMessage: message,
-                  task: aiResult.task || null,
-                  category: aiResult.category || 'important_information',
-                  priority: (aiResult.priority || 'MEDIUM').toUpperCase(),
-                  deadline: aiResult.deadline || null,
-                  receivedAt
-              });
-              console.log(`\n✅ Task created
+          finalTask = await taskStore.createTask({
+              source,
+              sender,
+              originalMessage: message,
+              task: aiResult.task || null,
+              category: aiResult.category || 'important_information',
+              priority: (aiResult.priority || 'MEDIUM').toUpperCase(),
+              deadline: aiResult.deadline || null,
+              receivedAt
+          });
+          console.log(`\n✅ Task created
 Task ID: ${finalTask.id}
 Status: ${finalTask.status}`);
-          }
       } else {
           console.log(`\nℹ️ No task created`);
       }
+
+      activeProcessing.delete(deduplicationKey);
 
       res.json({
         success: true,
@@ -218,6 +236,10 @@ Status: ${finalTask.status}`);
         task: finalTask
       });
   } catch (err) {
+      if (req.body && req.body.source) {
+          const { source, sender, message, receivedAt } = req.body;
+          activeProcessing.delete(`${source}-${sender}-${message}-${receivedAt}`);
+      }
       console.error(err);
       res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
