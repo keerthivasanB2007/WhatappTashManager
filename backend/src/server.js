@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Groq = require('groq-sdk');
 const taskStore = require('./taskStore');
 const reminderService = require('./reminderService');
 const jwt = require('jsonwebtoken');
@@ -35,14 +35,12 @@ app.use(express.json());
 
 // Decoupled architecture natively targeting distributed cloud origins.
 
-// Initialize Gemini
-let genAI = null;
-let model = null;
-if (process.env.GEMINI_API_KEY) {
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
+// Initialize Groq
+let groq = null;
+if (process.env.GROQ_API_KEY) {
+    groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 } else {
-    console.warn("WARNING: GEMINI_API_KEY is not set in .env");
+    console.warn("WARNING: GROQ_API_KEY is not set in .env");
 }
 
 // Health endpoint
@@ -116,8 +114,9 @@ app.post('/api/messages', async (req, res) => {
 
       let aiResult = null;
 
-      if (model) {
+      if (process.env.GROQ_API_KEY) {
           try {
+              const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
               const prompt = `
 You are an AI assistant analyzing a WhatsApp message.
 Reference time: ${receivedAt}
@@ -140,17 +139,23 @@ Do not invent tasks or deadlines if they are not present or inferable.
 Be lenient with casual chats (isImportant: false). 
 Respond with JSON only.`;
 
-              const result = await model.generateContent({
-                  contents: [{ role: "user", parts: [{ text: prompt }] }],
-                  generationConfig: {
-                      responseMimeType: "application/json",
-                  }
+              const completion = await groq.chat.completions.create({
+                  messages: [{ role: "user", content: prompt }],
+                  model: "openai/gpt-oss-20b"
               });
 
-              const responseText = result.response.text();
+              let responseText = completion.choices[0]?.message?.content || "{}";
+              // Safety fallback: stip out markdown code blocks if the bot uses them
+              if (responseText.includes("```json")) {
+                  responseText = responseText.split("```json")[1].split("```")[0].trim();
+              } else if (responseText.includes("```")) {
+                  responseText = responseText.split("```")[1].trim();
+              }
+              console.log("Raw AI Response:", responseText);
               aiResult = JSON.parse(responseText);
           } catch (error) {
-              console.error("Gemini AI Processing Error:", error.message);
+              console.error("Groq AI Processing Error:", error.message);
+              aiResult = { error: error.message };
           }
       }
 
@@ -161,7 +166,7 @@ Message: ${message}
 ReceivedAt: ${receivedAt}`);
       
       if (aiResult) {
-          console.log(`\n🤖 Gemini classification:
+          console.log(`\n🤖 Groq classification:
 Important: ${aiResult.isImportant}
 Task: ${aiResult.isTask}`);
           if (aiResult.isTask) {
