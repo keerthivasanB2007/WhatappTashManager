@@ -145,13 +145,11 @@ Respond with JSON only.`;
               });
 
               let responseText = completion.choices[0]?.message?.content || "{}";
-              // Safety fallback: stip out markdown code blocks if the bot uses them
               if (responseText.includes("```json")) {
                   responseText = responseText.split("```json")[1].split("```")[0].trim();
               } else if (responseText.includes("```")) {
                   responseText = responseText.split("```")[1].trim();
               }
-              console.log("Raw AI Response:", responseText);
               aiResult = JSON.parse(responseText);
           } catch (error) {
               console.error("Groq AI Processing Error:", error.message);
