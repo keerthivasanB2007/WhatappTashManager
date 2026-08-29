@@ -27,20 +27,22 @@ const Login = ({ onLogin }) => {
     };
 
     return (
-        <div className="login-container" style={{display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '100px'}}>
-            <div className="card" style={{width: '350px', padding: '2rem'}}>
-                <h2 style={{marginTop: 0, marginBottom: '20px'}}>Dashboard Secure Login</h2>
-                {error && <div className="error-banner" style={{marginBottom: '15px'}}>{error}</div>}
-                
-                <form onSubmit={handleSubmit} style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+        <div className="login-wrapper">
+            <div className="login-box">
+                <div className="login-header">
+                    <h2>Welcome to Dashboard</h2>
+                    <p>Enter your credentials to securely access your tasks.</p>
+                </div>
+                {error && <div className="login-error">{error}</div>}
+                <form onSubmit={handleSubmit}>
                     <input 
                         type="email" 
-                        placeholder="Admin Email" 
+                        placeholder="Work Email" 
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
                         autoFocus
-                        style={{padding: '10px', borderRadius: '4px', border: '1px solid #333', background: '#1c1c1c', color: '#fff'}}
+                        className="input-field"
                     />
                     <input 
                         type="password" 
@@ -48,10 +50,10 @@ const Login = ({ onLogin }) => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        style={{padding: '10px', borderRadius: '4px', border: '1px solid #333', background: '#1c1c1c', color: '#fff'}}
+                        className="input-field"
                     />
-                    <button type="submit" disabled={loading} style={{padding: '10px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>
-                        {loading ? 'Authenticating...' : 'Sign In'}
+                    <button type="submit" disabled={loading} className="btn-primary">
+                        {loading ? 'Authenticating...' : 'Sign in to Dashboard'}
                     </button>
                 </form>
             </div>
