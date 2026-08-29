@@ -199,7 +199,7 @@ fun NotificationAccessSection() {
 @Composable
 fun DashboardAccessSection() {
     val context = LocalContext.current
-    val DASHBOARD_URL = "<DASHBOARD_URL>"
+    val DASHBOARD_URL = "https://whatsapp-task-manager.vercel.app"
     
     PrecisionCard {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
@@ -227,10 +227,14 @@ fun DashboardAccessSection() {
             Button(
                 onClick = {
                     try {
-                        var finalUrl = DASHBOARD_URL
-                        if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) {
-                            finalUrl = "https://$finalUrl"
+                        val finalUrl = DASHBOARD_URL.trim().let {
+                            if (it.startsWith("http://") || it.startsWith("https://")) {
+                                it
+                            } else {
+                                "https://$it"
+                            }
                         }
+                        android.util.Log.d("DashboardLaunch", "Opening dashboard URL: $finalUrl")
                         val uri = android.net.Uri.parse(finalUrl)
                         val intent = Intent(Intent.ACTION_VIEW, uri)
                         context.startActivity(intent)
