@@ -222,35 +222,39 @@ export default function App() {
         <p className="task-original">"{task.originalMessage.length > 80 ? task.originalMessage.substring(0, 80) + '...' : task.originalMessage}"</p>
       )}
 
-      <div className="task-meta-row">
-        <div className="meta-chip">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-          {task.sender}
-        </div>
-        <div className={`meta-chip priority-${task.priority?.toLowerCase() || 'low'}`}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-          {task.priority || 'LOW'}
-        </div>
-        {task.category && (
-          <div className="meta-chip">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-            {task.category}
-          </div>
-        )}
-        <div className={`meta-chip ${task.status !== 'COMPLETED' && getTaskCategory(task) === 'OVERDUE' ? 'status-overdue-tag' : task.status !== 'COMPLETED' && getTaskCategory(task) === 'TODAY' ? 'status-today-tag' : ''}`}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-          {formatDeadlineBanner(task)}
-          {task.status === 'PENDING' && task.deadline && getTaskCategory(task) !== 'OVERDUE' && <span style={{marginLeft: '4px', opacity: 0.8, fontSize: '0.8rem'}}>🔔</span>}
-        </div>
-      </div>
+      <div className="task-meta-divider"></div>
 
-      <div className="task-actions-row">
-        {task.status === 'PENDING' ? (
-          <button className="btn-action btn-complete" onClick={(e) => handleStatusChange(e, task.id, 'COMPLETED')}>Complete</button>
-        ) : (
-          <button className="btn-action btn-pending" onClick={(e) => handleStatusChange(e, task.id, 'PENDING')}>Mark Pending</button>
-        )}
-        <button className="btn-action btn-delete" onClick={(e) => handleDelete(e, task.id)}>Delete</button>
+      <div className="task-card-footer">
+        <div className="task-meta-row">
+          <div className="meta-chip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            {task.sender}
+          </div>
+          {task.priority === 'HIGH' && (
+            <div className={`meta-chip priority-high`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+              HIGH
+            </div>
+          )}
+          {task.category && (
+            <div className="meta-chip">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              {task.category}
+            </div>
+          )}
+          <div className={`meta-chip ${task.status !== 'COMPLETED' && getTaskCategory(task) === 'OVERDUE' ? 'status-overdue-tag' : task.status !== 'COMPLETED' && getTaskCategory(task) === 'TODAY' ? 'status-today-tag' : ''}`}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            {formatDeadlineBanner(task)}
+            {task.status === 'PENDING' && task.deadline && getTaskCategory(task) !== 'OVERDUE' && <span className="reminder-bell-icon">🔔</span>}
+          </div>
+        </div>
+
+        <div className="task-actions-row">
+          <button className={`btn-action ${task.status === 'PENDING' ? 'btn-complete' : 'btn-pending'}`} onClick={(e) => handleStatusChange(e, task.id, task.status === 'PENDING' ? 'COMPLETED' : 'PENDING')}>
+            {task.status === 'PENDING' ? 'Complete' : 'Mark Pending'}
+          </button>
+          <button className="btn-action btn-delete" onClick={(e) => handleDelete(e, task.id)}>Delete</button>
+        </div>
       </div>
     </div>
   );
@@ -474,15 +478,19 @@ export default function App() {
 
         <section className="content-area">
           <div className="toolbar">
-            <input 
-              type="text" 
-              className="search-input" 
-              placeholder="Search tasks, messages, senders, or categories..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <div className="filters-group" style={{alignItems: 'center', display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
-              <div style={{display: 'flex', gap: '4px', overflowX: 'auto'}}>
+            <div className="search-input-wrapper">
+              <svg className="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input 
+                type="text" 
+                className="search-input" 
+                placeholder="Search tasks, messages..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <span className="search-hint">⌘ K</span>
+            </div>
+            <div className="filters-group">
+              <div className="filter-btn-group">
                 {['ALL', 'PENDING', 'COMPLETED', 'HIGH', 'DUE_TODAY', 'OVERDUE'].map(f => (
                   <button 
                     key={f} 
