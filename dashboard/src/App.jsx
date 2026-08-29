@@ -16,6 +16,12 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [backendStatus, setBackendStatus] = useState('Checking...');
   const [currentView, setCurrentView] = useState('TASKS'); // 'TASKS' or 'CALENDAR'
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
   
   // Calendar States
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -62,14 +68,22 @@ export default function App() {
 
   const handleStatusChange = async (e, id, newStatus) => {
     e.stopPropagation();
+    
+    // Optimistic Update
+    const previousGlobalTasks = [...globalTasks];
+    setGlobalTasks(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+    if (selectedTask && selectedTask.id === id) {
+      setSelectedTask(prev => ({...prev, status: newStatus}));
+    }
+
     try {
       await updateTaskStatus(id, newStatus);
-      fetchTasks();
-      if (selectedTask && selectedTask.id === id) {
-        setSelectedTask(prev => ({...prev, status: newStatus}));
-      }
     } catch (err) {
-      alert(err.message);
+      setGlobalTasks(previousGlobalTasks);
+      if (selectedTask && selectedTask.id === id) {
+        setSelectedTask(previousGlobalTasks.find(t => t.id === id) || null);
+      }
+      showToast('Failed to update task: ' + err.message);
     }
   };
 
@@ -78,9 +92,10 @@ export default function App() {
     if (window.confirm("Are you sure you want to delete this task?")) {
       try {
         await deleteTask(id);
-        fetchTasks();
+        setGlobalTasks(prev => prev.filter(t => t.id !== id));
+        if (selectedTask && selectedTask.id === id) setSelectedTask(null);
       } catch (err) {
-        alert(err.message);
+        showToast('Failed to delete task: ' + err.message);
       }
     }
   };
@@ -91,27 +106,45 @@ export default function App() {
   const startOfDayAfter = startOfTomorrow + 86400000;
 
   const getTaskCategory = (task) => {
-    if (task.status === 'COMPLETED') return 'COMPLETED';
-    if (!task.deadline) return 'UPCOMING';
+    if (!task.deadline) return 'NO_DEADLINE';
     const d = new Date(task.deadline).getTime();
-    if (isNaN(d)) return 'UPCOMING'; 
+    if (isNaN(d)) return 'NO_DEADLINE'; 
 
     if (d < startOfToday) return 'OVERDUE';
     if (d >= startOfToday && d < startOfTomorrow) return 'TODAY';
     if (d >= startOfTomorrow && d < startOfDayAfter) return 'TOMORROW';
-    return 'UPCOMING';
+    
+    const startOfNextWeek = startOfToday + (7 * 86400000); 
+    if (d >= startOfDayAfter && d < startOfNextWeek) return 'THIS_WEEK';
+    
+    return 'LATER';
   };
-
-  const totalTasks = globalTasks.length;
-  const pendingTasks = globalTasks.filter(t => t.status === 'PENDING').length;
-  const completedTasks = globalTasks.filter(t => t.status === 'COMPLETED').length;
-  const overdueTasks = globalTasks.filter(t => t.status === 'PENDING' && t.deadline && new Date(t.deadline).getTime() < startOfToday).length;
-  const highPriorityTasks = globalTasks.filter(t => t.status === 'PENDING' && t.priority === 'HIGH').length;
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'No deadline';
     const d = new Date(dateStr);
     return isNaN(d.getTime()) ? 'No deadline' : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  };
+
+  const formatDeadlineBanner = (task) => {
+    if (task.status === 'COMPLETED') return formatDate(task.deadline);
+    const cat = getTaskCategory(task);
+    if (!task.deadline || cat === 'NO_DEADLINE') return 'No deadline';
+
+    const d = new Date(task.deadline).getTime();
+    if (cat === 'OVERDUE') {
+      const days = Math.floor((startOfToday - d) / 86400000);
+      return days > 0 ? `Overdue by ${days} day${days > 1 ? 's' : ''}` : 'Overdue';
+    }
+    if (cat === 'TODAY') return 'Due today';
+    if (cat === 'TOMORROW') return 'Due tomorrow';
+    
+    if (d > startOfDayAfter) {
+      const days = Math.ceil((d - startOfToday) / 86400000);
+      return `Due in ${days} days`;
+    }
+
+    return formatDate(task.deadline);
   };
 
   const query = searchQuery.toLowerCase();
@@ -127,11 +160,11 @@ export default function App() {
     }
 
     // 2. State Filters
-    if (filter === 'PENDING' && t.status !== 'PENDING') return false;
+    if (filter === 'PENDING' && (t.status === 'COMPLETED' || getTaskCategory(t) === 'OVERDUE')) return false;
     if (filter === 'COMPLETED' && t.status !== 'COMPLETED') return false;
     if (filter === 'HIGH' && t.priority !== 'HIGH') return false;
     if (filter === 'DUE_TODAY' && getTaskCategory(t) !== 'TODAY') return false;
-    if (filter === 'OVERDUE' && getTaskCategory(t) !== 'OVERDUE') return false;
+    if (filter === 'OVERDUE' && (t.status === 'COMPLETED' || getTaskCategory(t) !== 'OVERDUE')) return false;
     
     return true;
   });
@@ -155,16 +188,22 @@ export default function App() {
     }
   });
 
+  const isFiltering = filter !== 'ALL' || searchQuery !== '';
+
   const sections = {
-    OVERDUE: fullyProcessedTasks.filter(t => getTaskCategory(t) === 'OVERDUE'),
+    OVERDUE: fullyProcessedTasks.filter(t => t.status !== 'COMPLETED' && getTaskCategory(t) === 'OVERDUE'),
     TODAY: fullyProcessedTasks.filter(t => getTaskCategory(t) === 'TODAY'),
-    TOMORROW: fullyProcessedTasks.filter(t => getTaskCategory(t) === 'TOMORROW'),
-    UPCOMING: fullyProcessedTasks.filter(t => getTaskCategory(t) === 'UPCOMING'),
-    COMPLETED: fullyProcessedTasks.filter(t => getTaskCategory(t) === 'COMPLETED')
+    UPCOMING: {
+       TOMORROW: fullyProcessedTasks.filter(t => t.status !== 'COMPLETED' && getTaskCategory(t) === 'TOMORROW'),
+       THIS_WEEK: fullyProcessedTasks.filter(t => t.status !== 'COMPLETED' && getTaskCategory(t) === 'THIS_WEEK'),
+       LATER: fullyProcessedTasks.filter(t => t.status !== 'COMPLETED' && getTaskCategory(t) === 'LATER'),
+    },
+    NO_DEADLINE: fullyProcessedTasks.filter(t => t.status !== 'COMPLETED' && getTaskCategory(t) === 'NO_DEADLINE'),
+    COMPLETED_PAST: fullyProcessedTasks.filter(t => t.status === 'COMPLETED' && getTaskCategory(t) !== 'TODAY')
   };
 
   const renderTaskCard = (task) => (
-    <div className="task-item" key={task.id} onClick={() => setSelectedTask(task)}>
+    <div className={`task-item ${task.status === 'COMPLETED' ? 'task-item-completed' : ''}`} key={task.id} onClick={() => setSelectedTask(task)}>
       <div className="task-item-header">
         <h3 className="task-title">{task.task || 'Unnamed Task'}</h3>
         <span className={`task-status-badge badge-${task.status.toLowerCase()}`}>{task.status}</span>
@@ -189,9 +228,10 @@ export default function App() {
             {task.category}
           </div>
         )}
-        <div className="meta-chip">
+        <div className={`meta-chip ${task.status !== 'COMPLETED' && getTaskCategory(task) === 'OVERDUE' ? 'status-overdue-tag' : task.status !== 'COMPLETED' && getTaskCategory(task) === 'TODAY' ? 'status-today-tag' : ''}`}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-          {formatDate(task.deadline)}
+          {formatDeadlineBanner(task)}
+          {task.status === 'PENDING' && task.deadline && getTaskCategory(task) !== 'OVERDUE' && <span style={{marginLeft: '4px', opacity: 0.8, fontSize: '0.8rem'}}>🔔</span>}
         </div>
       </div>
 
@@ -367,23 +407,23 @@ export default function App() {
           <div className="summary-cards">
             <div className="stat-card">
               <span className="stat-label">Total</span>
-              <span className="stat-val">{totalTasks}</span>
+              <span className="stat-val">{globalTasks.length}</span>
             </div>
             <div className="stat-card">
               <span className="stat-label">Pending</span>
-              <span className="stat-val">{pendingTasks}</span>
+              <span className="stat-val">{globalTasks.filter(t => t.status !== 'COMPLETED' && (!t.deadline || new Date(t.deadline).getTime() >= startOfToday)).length}</span>
             </div>
             <div className="stat-card">
               <span className="stat-label">Completed</span>
-              <span className="stat-val">{completedTasks}</span>
+              <span className="stat-val">{globalTasks.filter(t => t.status === 'COMPLETED').length}</span>
             </div>
             <div className="stat-card overdue">
               <span className="stat-label">Overdue</span>
-              <span className="stat-val" style={{color: 'var(--status-overdue)'}}>{overdueTasks}</span>
+              <span className="stat-val" style={{color: 'var(--status-overdue)'}}>{globalTasks.filter(t => t.status !== 'COMPLETED' && t.deadline && new Date(t.deadline).getTime() < startOfToday).length}</span>
             </div>
             <div className="stat-card high-priority">
               <span className="stat-label">High Priority</span>
-              <span className="stat-val" style={{color: 'var(--status-high)'}}>{highPriorityTasks}</span>
+              <span className="stat-val" style={{color: 'var(--status-high)'}}>{globalTasks.filter(t => t.status === 'PENDING' && t.priority === 'HIGH').length}</span>
             </div>
           </div>
 
@@ -454,44 +494,59 @@ export default function App() {
 
               {!loading && !error && (
                 <>
-                  {sections.OVERDUE.length > 0 && (
+                  {sections.OVERDUE.length > 0 || !isFiltering ? (
                     <div className="task-section">
                       <div className="section-label" style={{color: 'var(--status-overdue)'}}>Overdue</div>
-                      <div className="task-list-grid">
-                         {sections.OVERDUE.map(renderTaskCard)}
-                      </div>
+                      {sections.OVERDUE.length === 0 ? (
+                        <div className="empty-state-inline">You have zero overdue tasks! Great job.</div>
+                      ) : (
+                        <div className="task-list-grid">{sections.OVERDUE.map(renderTaskCard)}</div>
+                      )}
                     </div>
-                  )}
-                  {sections.TODAY.length > 0 && (
+                  ) : null}
+
+                  {sections.TODAY.length > 0 || !isFiltering ? (
                     <div className="task-section">
                       <div className="section-label">Today</div>
-                      <div className="task-list-grid">
-                         {sections.TODAY.map(renderTaskCard)}
-                      </div>
+                      {sections.TODAY.length === 0 ? (
+                        <div className="empty-state-inline">No tasks due today. Enjoy your day!</div>
+                      ) : (
+                        <div className="task-list-grid">{sections.TODAY.map(renderTaskCard)}</div>
+                      )}
                     </div>
-                  )}
-                  {sections.TOMORROW.length > 0 && (
-                    <div className="task-section">
-                      <div className="section-label">Tomorrow</div>
-                      <div className="task-list-grid">
-                         {sections.TOMORROW.map(renderTaskCard)}
-                      </div>
-                    </div>
-                  )}
-                  {sections.UPCOMING.length > 0 && (
+                  ) : null}
+
+                  {(sections.UPCOMING.TOMORROW.length > 0 || sections.UPCOMING.THIS_WEEK.length > 0 || sections.UPCOMING.LATER.length > 0) || !isFiltering ? (
                     <div className="task-section">
                       <div className="section-label">Upcoming</div>
-                      <div className="task-list-grid">
-                         {sections.UPCOMING.map(renderTaskCard)}
-                      </div>
+                      {sections.UPCOMING.TOMORROW.length === 0 && sections.UPCOMING.THIS_WEEK.length === 0 && sections.UPCOMING.LATER.length === 0 ? (
+                        <div className="empty-state-inline">No upcoming tasks scheduled yet.</div>
+                      ) : (
+                        <div className="task-list-grid">
+                           {sections.UPCOMING.TOMORROW.length > 0 && <div className="sub-label">Tomorrow</div>}
+                           {sections.UPCOMING.TOMORROW.map(renderTaskCard)}
+
+                           {sections.UPCOMING.THIS_WEEK.length > 0 && <div className="sub-label">This Week</div>}
+                           {sections.UPCOMING.THIS_WEEK.map(renderTaskCard)}
+
+                           {sections.UPCOMING.LATER.length > 0 && <div className="sub-label">Later</div>}
+                           {sections.UPCOMING.LATER.map(renderTaskCard)}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {sections.NO_DEADLINE.length > 0 && (
+                    <div className="task-section">
+                      <div className="section-label">No Deadline</div>
+                      <div className="task-list-grid">{sections.NO_DEADLINE.map(renderTaskCard)}</div>
                     </div>
                   )}
-                  {sections.COMPLETED.length > 0 && (
+
+                  {sections.COMPLETED_PAST.length > 0 && (
                     <div className="task-section">
-                      <div className="section-label">Completed</div>
-                      <div className="task-list-grid">
-                         {sections.COMPLETED.map(renderTaskCard)}
-                      </div>
+                      <div className="section-label">Previously Completed</div>
+                      <div className="task-list-grid">{sections.COMPLETED_PAST.map(renderTaskCard)}</div>
                     </div>
                   )}
                 </>
@@ -532,6 +587,12 @@ export default function App() {
                   <span className="modal-meta-value">{selectedTask.category || 'N/A'}</span>
                 </div>
                 <div className="modal-meta-item">
+                  <span className="modal-meta-label">Reminder</span>
+                  <span className="modal-meta-value" style={{color: selectedTask.status === 'PENDING' && selectedTask.deadline && getTaskCategory(selectedTask) !== 'OVERDUE' ? 'var(--status-success, #10B981)' : 'var(--text-secondary)'}}>
+                    {selectedTask.status === 'PENDING' && selectedTask.deadline && getTaskCategory(selectedTask) !== 'OVERDUE' ? '🔔 Reminder Set (Native)' : 'No Reminder'}
+                  </span>
+                </div>
+                <div className="modal-meta-item">
                   <span className="modal-meta-label">Created Date</span>
                   <span className="modal-meta-value">{formatDate(selectedTask.createdAt || selectedTask.receivedAt)}</span>
                 </div>
@@ -565,6 +626,12 @@ export default function App() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {toastMessage && (
+        <div className="toast-notification">
+          {toastMessage}
         </div>
       )}
     </div>

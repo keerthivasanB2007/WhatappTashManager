@@ -352,6 +352,15 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
+.task-item-completed {
+  opacity: 0.6;
+}
+
+.task-item-completed .task-title {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
 .task-item-header {
   display: flex;
   justify-content: space-between;
@@ -405,6 +414,9 @@ body {
 
 .meta-chip.priority-high { color: var(--status-high); font-weight: 600; }
 .meta-chip.priority-medium { color: var(--status-pending); font-weight: 500; }
+
+.status-overdue-tag { color: var(--status-overdue) !important; font-weight: 600 !important; }
+.status-today-tag { color: var(--status-pending) !important; font-weight: 600 !important; }
 
 .task-actions-row {
   display: flex;
@@ -672,6 +684,27 @@ body {
   line-height: 1.5;
 }
 
+.empty-state-inline {
+  padding: 24px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+.sub-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 12px 0 4px 0;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
 /* Skeleton Loading */
 .skeleton-item {
   animation: pulse 1.5s infinite ease-in-out;
@@ -793,6 +826,27 @@ body {
 .cal-cell.is-selected {
   outline: 2px solid var(--primary);
   outline-offset: -2px;
+}
+
+.toast-notification {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text-primary);
+  color: var(--surface);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  z-index: 9999;
+  animation: slideUpToast 0.3s ease-out;
+}
+
+@keyframes slideUpToast {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 .cal-date-num {

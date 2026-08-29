@@ -8,6 +8,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import com.example.whatsapptaskmanager.api.MessageRequest
+import com.example.whatsapptaskmanager.api.MessageResponse
 import com.example.whatsapptaskmanager.api.RetrofitClient
 import retrofit2.Call
 import retrofit2.Callback
@@ -27,6 +28,10 @@ class WhatsAppNotificationListenerService : NotificationListenerService() {
             return
         }
 
+        DebugStatusManager.updateStatus(MonitorStatus.NOTIFICATION_RECEIVED)
+        Log.d(TAG, "WhatsApp notification detected")
+
+        DebugStatusManager.updateStatus(MonitorStatus.EXTRACTING)
         val notification = sbn.notification
         val extras = notification.extras
 
@@ -34,7 +39,13 @@ class WhatsAppNotificationListenerService : NotificationListenerService() {
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
         val timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.getDefault()).format(Date())
 
-        Log.d(TAG, "WhatsApp notification detected")
+        DebugStatusManager.updateStatus(
+            status = MonitorStatus.EXTRACTED,
+            sender = title ?: "Unknown",
+            message = text ?: "No text",
+            timestamp = timestamp
+        )
+
         Log.d(TAG, "Package: ${sbn.packageName}")
         Log.d(TAG, "Sender: ${title ?: "Unknown"}")
         Log.d(TAG, "Message: ${text ?: "No text"}")
@@ -42,6 +53,7 @@ class WhatsAppNotificationListenerService : NotificationListenerService() {
 
         if (text.isNullOrBlank()) {
             Log.d(TAG, "Ignoring notification: empty message")
+            DebugStatusManager.updateStatus(MonitorStatus.IDLE)
             return
         }
 
@@ -60,6 +72,7 @@ class WhatsAppNotificationListenerService : NotificationListenerService() {
 
         if (isSystemNotification) {
             Log.d(TAG, "Ignoring system notification: $title - $text")
+            DebugStatusManager.updateStatus(MonitorStatus.IDLE)
             return
         }
 
@@ -70,18 +83,43 @@ class WhatsAppNotificationListenerService : NotificationListenerService() {
             receivedAt = timestamp
         )
 
+        DebugStatusManager.updateStatus(MonitorStatus.SENDING)
         Log.d(TAG, "Sending message to backend...")
-        RetrofitClient.instance.sendMessage(request).enqueue(object : Callback<Any> {
-            override fun onResponse(call: Call<Any>, response: Response<Any>) {
+        
+        RetrofitClient.instance.sendMessage(request).enqueue(object : Callback<MessageResponse> {
+            override fun onResponse(call: Call<MessageResponse>, response: Response<MessageResponse>) {
                 if (response.isSuccessful) {
-                    Log.d(TAG, "Successfully sent message to backend")
+                    val body = response.body()
+                    Log.d(TAG, "Successfully sent message to backend. Success: ${body?.success}")
+                    
+                    val classification = body?.classification
+                    val status = if (classification?.isTask == true) MonitorStatus.SUCCESS else MonitorStatus.NO_TASK
+                    
+                    body?.task?.let { taskData ->
+                        AlarmScheduler.scheduleAlarm(applicationContext, taskData)
+                    }
+
+                    DebugStatusManager.updateStatus(
+                        status = status,
+                        httpStatus = response.code(),
+                        backendResponse = body?.toString()
+                    )
                 } else {
                     Log.e(TAG, "Failed to send message: ${response.code()}")
+                    DebugStatusManager.updateStatus(
+                        status = MonitorStatus.FAILED,
+                        error = "HTTP ${response.code()}: ${response.message()}",
+                        httpStatus = response.code()
+                    )
                 }
             }
 
-            override fun onFailure(call: Call<Any>, t: Throwable) {
+            override fun onFailure(call: Call<MessageResponse>, t: Throwable) {
                 Log.e(TAG, "Error sending message: ${t.message}")
+                DebugStatusManager.updateStatus(
+                    status = MonitorStatus.FAILED,
+                    error = t.message ?: "Unknown network error"
+                )
             }
         })
     }
@@ -89,10 +127,12 @@ class WhatsAppNotificationListenerService : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         Log.d(TAG, "Notification Listener Connected")
+        DebugStatusManager.updateStatus(MonitorStatus.LISTENER_CONNECTED)
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         Log.d(TAG, "Notification Listener Disconnected")
+        DebugStatusManager.updateStatus(MonitorStatus.DISCONNECTED)
     }
 }
