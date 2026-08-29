@@ -17,6 +17,15 @@ export default function App() {
   const [backendStatus, setBackendStatus] = useState('Checking...');
   const [currentView, setCurrentView] = useState('TASKS'); // 'TASKS' or 'CALENDAR'
   const [toastMessage, setToastMessage] = useState(null);
+  
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') setAccountMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -403,7 +412,29 @@ export default function App() {
       {/* Main Content */}
       <main className="main-content">
         <header className="header">
-          <button className="logout-btn" onClick={handleLogout}>Log out</button>
+          <div className="account-dropdown-wrapper">
+             <button className="account-dropdown-btn" onClick={() => setAccountMenuOpen(!accountMenuOpen)}>
+                <div className="account-avatar">A</div>
+                <span className="account-label">Account</span>
+                <span className="account-chev">˅</span>
+             </button>
+             {accountMenuOpen && (
+               <>
+                 <div className="account-dropdown-overlay" onClick={() => setAccountMenuOpen(false)}></div>
+                 <div className="account-dropdown-menu">
+                   <div className="account-dropdown-header">
+                     <span className="account-dropdown-name">Account</span>
+                     <span className="account-dropdown-status">Signed in</span>
+                   </div>
+                   <div className="account-dropdown-actions">
+                     <button className="account-dropdown-item" onClick={() => { setAccountMenuOpen(false); handleLogout(); }}>
+                       ↪ Log out
+                     </button>
+                   </div>
+                 </div>
+               </>
+             )}
+          </div>
           <div className="summary-cards">
             <div className="stat-card">
               <span className="stat-label">Total</span>

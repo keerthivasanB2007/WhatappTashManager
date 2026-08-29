@@ -28,34 +28,37 @@ const Login = ({ onLogin }) => {
 
     return (
         <div className="login-wrapper">
+            <div className="login-hero">
+                <h1>WhatsAppTaskManager</h1>
+                <p>Your tasks, organized simply.</p>
+            </div>
             <div className="login-box">
                 <div className="login-header">
-                    <h2>Welcome to Dashboard</h2>
-                    <p>Enter your credentials to securely access your tasks.</p>
+                    <h2>Welcome back</h2>
                 </div>
-                {error && <div className="login-error">{error}</div>}
                 <form onSubmit={handleSubmit}>
+                    <label className="login-label">Email / Username</label>
                     <input 
                         type="email" 
-                        placeholder="Work Email" 
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
                         autoFocus
                         className="input-field"
                     />
+                    <label className="login-label">Password</label>
                     <input 
                         type="password" 
-                        placeholder="Password" 
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         className="input-field"
                     />
                     <button type="submit" disabled={loading} className="btn-primary">
-                        {loading ? 'Authenticating...' : 'Sign in to Dashboard'}
+                        {loading ? 'Authenticating...' : 'Sign in'}
                     </button>
                 </form>
+                {error && <div className="login-error-toast">{error}</div>}
             </div>
         </div>
     );
