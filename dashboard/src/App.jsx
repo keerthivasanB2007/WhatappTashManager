@@ -416,28 +416,30 @@ export default function App() {
       {/* Main Content */}
       <main className="main-content">
         <header className="header">
-          <div className="account-dropdown-wrapper">
-             <button className="account-dropdown-btn" onClick={() => setAccountMenuOpen(!accountMenuOpen)}>
-                <div className="account-avatar">A</div>
-                <span className="account-label">Account</span>
-                <span className="account-chev">˅</span>
-             </button>
-             {accountMenuOpen && (
-               <>
-                 <div className="account-dropdown-overlay" onClick={() => setAccountMenuOpen(false)}></div>
-                 <div className="account-dropdown-menu">
-                   <div className="account-dropdown-header">
-                     <span className="account-dropdown-name">Account</span>
-                     <span className="account-dropdown-status">Signed in</span>
+          <div className="header-top">
+            <div className="account-dropdown-wrapper">
+               <button className="account-dropdown-btn" onClick={() => setAccountMenuOpen(!accountMenuOpen)}>
+                  <div className="account-avatar">A</div>
+                  <span className="account-label">Account</span>
+                  <span className="account-chev">˅</span>
+               </button>
+               {accountMenuOpen && (
+                 <>
+                   <div className="account-dropdown-overlay" onClick={() => setAccountMenuOpen(false)}></div>
+                   <div className="account-dropdown-menu">
+                     <div className="account-dropdown-header">
+                       <span className="account-dropdown-name">Account</span>
+                       <span className="account-dropdown-status">Signed in</span>
+                     </div>
+                     <div className="account-dropdown-actions">
+                       <button className="account-dropdown-item" onClick={() => { setAccountMenuOpen(false); handleLogout(); }}>
+                         ↪ Log out
+                       </button>
+                     </div>
                    </div>
-                   <div className="account-dropdown-actions">
-                     <button className="account-dropdown-item" onClick={() => { setAccountMenuOpen(false); handleLogout(); }}>
-                       ↪ Log out
-                     </button>
-                   </div>
-                 </div>
-               </>
-             )}
+                 </>
+               )}
+            </div>
           </div>
           <div className="summary-cards">
             <div className="stat-card">
