@@ -123,15 +123,15 @@ app.post('/api/messages', async (req, res) => {
       activeProcessing.add(deduplicationKey);
 
       // 2. Early Database Duplicate Check
-          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-          const duplicate = await prisma.task.findFirst({
-              where: {
-                  status: 'PENDING',
-                  sender,
-                  originalMessage: message,
-                  createdAt: { gte: fiveMinutesAgo }
-              }
-          });
+      // Look back 5 minutes without constraining by status; allows preventing repeats of rapidly COMPLETED tasks.
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const duplicate = await prisma.task.findFirst({
+          where: {
+              sender,
+              originalMessage: message,
+              createdAt: { gte: fiveMinutesAgo }
+          }
+      });
 
           if (duplicate) {
               activeProcessing.delete(deduplicationKey);
@@ -210,19 +210,60 @@ Task: ${aiResult.isTask}`);
       let finalTask = null;
 
       if (aiResult && aiResult.isTask) {
-          finalTask = await taskStore.createTask({
-              source,
-              sender,
-              originalMessage: message,
-              task: aiResult.task || null,
-              category: aiResult.category || 'important_information',
-              priority: (aiResult.priority || 'MEDIUM').toUpperCase(),
-              deadline: aiResult.deadline || null,
-              receivedAt
-          });
-          console.log(`\n✅ Task created
-Task ID: ${finalTask.id}
-Status: ${finalTask.status}`);
+          // 3. Absolute Database Race Protection
+          // A pure check-then-insert logic can fail if N>1 threads evaluate .findFirst() perfectly concurrently.
+          // By wrapping the check-and-insert in a Prisma transaction paired with PostgreSQL's advisory locks,
+          // we force horizontal replicas to queue linearly for this specific notification fingerprint dynamically!
+          
+          let hash = 0;
+          const keyStr = `${sender}-${message}`;
+          for (let i = 0; i < keyStr.length; i++) hash = ((hash << 5) - hash) + keyStr.charCodeAt(i) | 0;
+          const lockKey = hash; // 32-bit collision-resistant footprint
+
+          try {
+              finalTask = await prisma.$transaction(async (tx) => {
+                  // Wait sequentially ensuring all replicas pause if one is currently transacting this exact hash
+                  await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(1, ${lockKey})`);
+                  
+                  const crossReplicaDuplicate = await tx.task.findFirst({
+                      where: {
+                          sender,
+                          originalMessage: message,
+                          createdAt: { gte: fiveMinutesAgo }
+                      }
+                  });
+
+                  if (crossReplicaDuplicate) {
+                      console.log(`\n⚠️ Database race blocked successfully! Concurrent replica bypassed.`);
+                      return crossReplicaDuplicate;
+                  }
+
+                  const newTask = await tx.task.create({
+                      data: {
+                          source,
+                          sender,
+                          originalMessage: message,
+                          task: aiResult.task || null,
+                          category: aiResult.category || 'important_information',
+                          priority: (aiResult.priority || 'MEDIUM').toUpperCase(),
+                          deadline: aiResult.deadline ? new Date(aiResult.deadline) : null,
+                          status: 'PENDING',
+                          createdAt: new Date(),
+                          receivedAt: receivedAt ? new Date(receivedAt) : null,
+                          reminderSent: false
+                      }
+                  });
+                  return newTask;
+              });
+
+              if (finalTask.status !== 'PENDING' && finalTask.createdAt < new Date(Date.now() - 1000)) {
+                   // This was a returned duplicate from inside the transaction
+              } else {
+                  console.log(`\n✅ Task created\nTask ID: ${finalTask.id}\nStatus: ${finalTask.status}`);
+              }
+          } catch(err) {
+              console.error(`\n⚠️ Transaction fault allocating atomic write`, err.message);
+          }
       } else {
           console.log(`\nℹ️ No task created`);
       }
@@ -231,14 +272,14 @@ Status: ${finalTask.status}`);
 
       res.json({
         success: true,
-        message: finalTask ? 'Message processed and task created' : 'Message processed',
+        message: (finalTask && finalTask.createdAt > new Date(Date.now() - 2000)) ? 'Message processed and task created' : 'Message processed',
         classification: aiResult,
         task: finalTask
       });
   } catch (err) {
       if (req.body && req.body.source) {
-          const { source, sender, message, receivedAt } = req.body;
-          activeProcessing.delete(`${source}-${sender}-${message}-${receivedAt}`);
+          const { source, sender, message } = req.body;
+          activeProcessing.delete(`${source}-${sender}-${message}`);
       }
       console.error(err);
       res.status(500).json({ success: false, message: 'Internal Server Error' });
