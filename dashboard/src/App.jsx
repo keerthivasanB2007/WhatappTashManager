@@ -16,12 +16,18 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [backendStatus, setBackendStatus] = useState('Checking...');
   const [currentView, setCurrentView] = useState('TASKS'); // 'TASKS' or 'CALENDAR'
+  const [calendarView, setCalendarView] = useState('Month'); // 'Month' or 'Agenda'
   const [toastMessage, setToastMessage] = useState(null);
   
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar toggle
+
   useEffect(() => {
     const handleEsc = (e) => {
-      if (e.key === 'Escape') setAccountMenuOpen(false);
+      if (e.key === 'Escape') {
+        setAccountMenuOpen(false);
+        setSidebarOpen(false);
+      }
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
@@ -34,8 +40,7 @@ export default function App() {
   
   // Calendar States
   const [calendarDate, setCalendarDate] = useState(new Date());
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
-
+  
   const fetchTasks = async () => {
     try {
       setLoading(true);
@@ -76,7 +81,7 @@ export default function App() {
   }, [isAuthenticated]);
 
   const handleStatusChange = async (e, id, newStatus) => {
-    e.stopPropagation();
+    if(e) e.stopPropagation();
     
     // Optimistic Update
     const previousGlobalTasks = [...globalTasks];
@@ -97,7 +102,7 @@ export default function App() {
   };
 
   const handleDelete = async (e, id) => {
-    e.stopPropagation();
+    if(e) e.stopPropagation();
     if (window.confirm("Are you sure you want to delete this task?")) {
       try {
         await deleteTask(id);
@@ -134,27 +139,16 @@ export default function App() {
     const d = new Date(dateStr);
     return isNaN(d.getTime()) ? 'No deadline' : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   };
-
-  const formatDeadlineBanner = (task) => {
-    if (task.status === 'COMPLETED') return formatDate(task.deadline);
-    const cat = getTaskCategory(task);
-    if (!task.deadline || cat === 'NO_DEADLINE') return 'No deadline';
-
-    const d = new Date(task.deadline).getTime();
-    if (cat === 'OVERDUE') {
-      const days = Math.floor((startOfToday - d) / 86400000);
-      return days > 0 ? `Overdue by ${days} day${days > 1 ? 's' : ''}` : 'Overdue';
-    }
-    if (cat === 'TODAY') return 'Due today';
-    if (cat === 'TOMORROW') return 'Due tomorrow';
-    
-    if (d > startOfDayAfter) {
-      const days = Math.ceil((d - startOfToday) / 86400000);
-      return `Due in ${days} days`;
-    }
-
-    return formatDate(task.deadline);
+  
+  const extractUrl = (text) => {
+    if (!text) return null;
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const matches = text.match(urlRegex);
+    return matches ? matches[0] : null;
   };
+
+  // Safe Unique Groups Extraction
+  const uniqueGroups = Array.from(new Set(globalTasks.filter(t => t.sender).map(t => t.sender))).sort();
 
   const query = searchQuery.toLowerCase();
   
@@ -174,6 +168,7 @@ export default function App() {
     if (filter === 'HIGH' && t.priority !== 'HIGH') return false;
     if (filter === 'DUE_TODAY' && getTaskCategory(t) !== 'TODAY') return false;
     if (filter === 'OVERDUE' && (t.status === 'COMPLETED' || getTaskCategory(t) !== 'OVERDUE')) return false;
+    if (uniqueGroups.includes(filter) && t.sender !== filter) return false; // Basic support for Group filtering
     
     return true;
   });
@@ -197,7 +192,7 @@ export default function App() {
     }
   });
 
-  // 4. DISPLAY-ONLY Deduplication Helper
+  // 4. DISPLAY-ONLY Deduplication Helper (PRESERVED EXACTLY AS BEFORE)
   const getUniqueTasks = (tasks) => {
     const getNormalizedString = (str) => (str || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
@@ -213,11 +208,9 @@ export default function App() {
       const deadlineTime = t.deadline ? new Date(t.deadline).getTime() : 'no_deadline';
       
       const normMsg = t.originalMessage ? getNormalizedString(t.originalMessage) : '';
-      // Require sender + exact originalMessage + same deadline
       const msgKey = normMsg ? `msg_${sender}_${normMsg}_${deadlineTime}` : null;
       
       const normTitle = t.task ? getNormalizedString(t.task) : '';
-      // Require sender + exact title + same deadline
       const titleKey = normTitle ? `title_${sender}_${normTitle}_${deadlineTime}` : null;
       
       let isDuplicate = false;
@@ -254,66 +247,92 @@ export default function App() {
     COMPLETED_PAST: fullyProcessedTasks.filter(t => t.status === 'COMPLETED' && getTaskCategory(t) !== 'TODAY')
   };
 
-  const renderTaskCard = (task) => (
-    <div className={`task-item ${task.status === 'COMPLETED' ? 'task-item-completed' : ''}`} key={task.id} onClick={() => setSelectedTask(task)}>
-      <div className="task-item-header">
-        <h3 className="task-title">{task.task || 'Unnamed Task'}</h3>
-        <span className={`task-status-badge badge-${task.status.toLowerCase()}`}>{task.status}</span>
-      </div>
+  const renderTaskCard = (task) => {
+      const url = extractUrl(task.originalMessage);
+      const isCompleted = task.status === 'COMPLETED';
+      const isOverdue = !isCompleted && getTaskCategory(task) === 'OVERDUE';
+      const isHighPriority = task.priority === 'HIGH';
       
-      {task.originalMessage && (
-        <p className="task-original">"{task.originalMessage.length > 80 ? task.originalMessage.substring(0, 80) + '...' : task.originalMessage}"</p>
-      )}
+      // Calculate identical dupes just for UI context, NOT mutating db object
+      const duplicatesCount = globalTasks.filter(t => t.task === task.task && t.sender === task.sender && t.deadline === task.deadline).length;
 
-      <div className="task-meta-divider"></div>
-
-      <div className="task-card-footer">
-        <div className="task-meta-row">
-          <div className="meta-chip">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-            {task.sender}
-          </div>
-          {task.priority === 'HIGH' && (
-            <div className={`meta-chip priority-high`}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-              HIGH
+      return (
+        <div className={`task-item ${isCompleted ? 'task-item-completed' : ''}`} key={task.id}>
+            <div className="task-checkbox-container">
+               <button 
+                  className={`task-checkbox-btn ${isCompleted ? 'completed' : ''}`} 
+                  onClick={(e) => handleStatusChange(e, task.id, isCompleted ? 'PENDING' : 'COMPLETED')}
+                  title={isCompleted ? "Mark pending" : "Mark complete"}
+               >
+                  {isCompleted ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"></circle></svg>
+                  )}
+               </button>
             </div>
-          )}
-          {task.category && (
-            <div className="meta-chip">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              {task.category}
+            
+            <div className="task-content">
+                <div className="task-title-row">
+                    <span className="task-title" onClick={() => setSelectedTask(task)}>{task.task || 'Unnamed Task'}</span>
+                    <div className="task-meta-badges">
+                        {isHighPriority && !isCompleted && (
+                            <span className="badge-priority">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                High
+                            </span>
+                        )}
+                        {isOverdue && <span className="badge-overdue">Overdue</span>}
+                    </div>
+                </div>
+                
+                <div className="task-subtitle-row">
+                    <span className="badge-source">{task.sender}</span>
+                    <span style={{opacity: 0.5}}>·</span>
+                    <span>{task.category || 'Inbox'}</span>
+                    {duplicatesCount > 1 && (
+                        <>
+                           <span style={{opacity: 0.5}}>·</span>
+                           <span>Reported in {duplicatesCount} messages</span>
+                        </>
+                    )}
+                </div>
+                
+                {task.originalMessage && (
+                    <div className="task-original-msg">
+                        "{task.originalMessage}"
+                    </div>
+                )}
             </div>
-          )}
-          <div className={`meta-chip ${task.status !== 'COMPLETED' && getTaskCategory(task) === 'OVERDUE' ? 'status-overdue-tag' : task.status !== 'COMPLETED' && getTaskCategory(task) === 'TODAY' ? 'status-today-tag' : ''}`}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-            {formatDeadlineBanner(task)}
-            {task.status === 'PENDING' && task.deadline && getTaskCategory(task) !== 'OVERDUE' && <span className="reminder-bell-icon">🔔</span>}
-          </div>
+            
+            <div className="task-actions">
+                <span className={`task-deadline ${isOverdue ? 'is-overdue' : ''}`}>
+                   {task.deadline ? formatDate(task.deadline) : 'No due date'}
+                </span>
+                {url && (
+                    <a className="btn-link" href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+                        Open Link ↗
+                    </a>
+                )}
+                
+                <div className="task-more-menu">
+                   <button className="btn-more" onClick={(e) => {
+                       e.stopPropagation();
+                       // Simple native prompt to delete instead of building full custom dropdown UI complexity to save DOM rendering overhead
+                       handleDelete(e, task.id);
+                   }} title="Delete target">
+                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                   </button>
+                </div>
+            </div>
         </div>
-
-        <div className="task-actions-row">
-          <button className={`btn-action ${task.status === 'PENDING' ? 'btn-complete' : 'btn-pending'}`} onClick={(e) => handleStatusChange(e, task.id, task.status === 'PENDING' ? 'COMPLETED' : 'PENDING')}>
-            {task.status === 'PENDING' ? 'Complete' : 'Mark Pending'}
-          </button>
-          <button className="btn-action btn-delete" onClick={(e) => handleDelete(e, task.id)}>Delete</button>
-        </div>
-      </div>
-    </div>
-  );
+      );
+  };
 
   const renderSkeleton = () => (
     <div className="task-list-grid">
-      {[1, 2, 3].map(i => (
-        <div className="task-item skeleton-item" key={i}>
-          <div className="skeleton-title"></div>
-          <div className="skeleton-text"></div>
-          <div className="skeleton-text short"></div>
-          <div className="skeleton-row">
-            <div className="skeleton-chip"></div>
-            <div className="skeleton-chip"></div>
-          </div>
-        </div>
+      {[1, 2, 3, 4, 5].map(i => (
+        <div className="skeleton-item" key={i}></div>
       ))}
     </div>
   );
@@ -341,10 +360,43 @@ export default function App() {
 
     const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
-    // Deduplicate calendar views based on chronological sort (recent first bias for conflicts)
+    // Deduplicate calendar views exactly preserving constraints
     const uniqueCalendarTasks = getUniqueTasks([...globalTasks].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
 
-    // Group tasks per date
+    if (calendarView === 'Agenda') {
+      const upNext = uniqueCalendarTasks.filter(t => t.deadline && new Date(t.deadline).getTime() >= startOfToday).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+      
+      return (
+        <div className="calendar-view cal-agenda-view">
+           <div className="calendar-toolbar" style={{marginBottom: '24px'}}>
+              <h2 className="workspace-title">Agenda View</h2>
+              <div className="calendar-controls">
+                <button className="cal-nav-btn" onClick={() => setCalendarView('Month')}>Month</button>
+                <button className="cal-nav-btn" onClick={() => setCalendarView('Agenda')} style={{background: 'var(--border)'}}>Agenda</button>
+              </div>
+           </div>
+           {upNext.length === 0 ? <div className="empty-state">No upcoming tasks with deadlines.</div> : (
+              <div className="agenda-list">
+                 {upNext.map(t => (
+                    <div className="agenda-item" key={t.id}>
+                        <div className="agenda-time">
+                            {new Date(t.deadline).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit'})}
+                        </div>
+                        <div className="agenda-content">
+                            {t.task}
+                            <span style={{color: t.priority === 'HIGH' ? 'var(--status-high)' : t.status === 'COMPLETED' ? 'var(--status-completed)' : 'var(--text-muted)'}}>
+                                {t.sender} · {t.status === 'COMPLETED' ? 'Completed' : t.priority === 'HIGH' ? 'High Priority' : 'Pending'} {t.originalMessage ? '· Msg attached' : ''}
+                            </span>
+                        </div>
+                    </div>
+                 ))}
+              </div>
+           )}
+        </div>
+      );
+    }
+
+    // Default Month View Grouping
     const tasksByDate = {};
     uniqueCalendarTasks.forEach(t => {
       if (!t.deadline) return;
@@ -358,363 +410,261 @@ export default function App() {
 
     return (
       <div className="calendar-view">
-        <div className="calendar-header">
-          <h2>{monthName}</h2>
-          <div className="calendar-nav-btns">
-            <button className="cal-nav-btn" onClick={() => setCalendarDate(new Date(year, month - 1, 1))}>&lt;</button>
-            <button className="cal-today-btn" onClick={() => { setCalendarDate(new Date()); setSelectedCalendarDate(new Date()); }}>Today</button>
-            <button className="cal-nav-btn" onClick={() => setCalendarDate(new Date(year, month + 1, 1))}>&gt;</button>
-          </div>
-        </div>
-        
-        <div className="calendar-grid-header">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
-        </div>
-        
-        <div className="calendar-grid">
-          {days.map((day, idx) => {
-            if (!day) return <div key={`empty-${idx}`} className="cal-cell empty"></div>;
-            
-            const localStr = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
-            const dayTasks = tasksByDate[localStr] || [];
-            const isToday = day.getTime() === todayMs;
-            const isSelected = selectedCalendarDate && day.getTime() === new Date(selectedCalendarDate.getFullYear(), selectedCalendarDate.getMonth(), selectedCalendarDate.getDate()).getTime();
-            const isPast = day.getTime() < todayMs;
-            
-            let cellClass = "cal-cell";
-            if (isToday) cellClass += " is-today";
-            if (isSelected) cellClass += " is-selected";
-            
-            return (
-              <div key={localStr} className={cellClass} onClick={() => setSelectedCalendarDate(day)}>
-                <div className="cal-date-num">{day.getDate()}</div>
-                <div className="cal-indicators">
-                  {dayTasks.length > 0 && dayTasks.slice(0, 3).map((t, i) => {
-                     const isCompleted = t.status === 'COMPLETED';
-                     return (
-                       <div key={i} className={`cal-task-dot ${isCompleted ? 'cal-task-completed' : `priority-${t.priority?.toLowerCase() || 'low'}`}`} title={t.task}>
-                          {t.task}
-                       </div>
-                     );
-                  })}
-                  {dayTasks.length > 3 && (
-                     <div className="cal-task-more">+{dayTasks.length - 3} more</div>
-                  )}
-                  {dayTasks.length > 0 && isPast && (
-                     <div className="cal-overdue-alert">Overdue</div>
-                  )}
-                </div>
+        <div className="calendar-toolbar" style={{marginBottom: '24px'}}>
+           <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+              <h2 className="workspace-title" style={{margin: 0}}>{monthName}</h2>
+              <div className="calendar-controls">
+                <button className="cal-nav-btn" onClick={() => setCalendarDate(new Date(year, month - 1, 1))}>&lt;</button>
+                <button className="cal-today-btn" onClick={() => setCalendarDate(new Date())}>Today</button>
+                <button className="cal-nav-btn" onClick={() => setCalendarDate(new Date(year, month + 1, 1))}>&gt;</button>
               </div>
-            );
-          })}
+           </div>
+           
+           <div className="calendar-controls">
+                <button className="cal-nav-btn" onClick={() => setCalendarView('Month')} style={{background: 'var(--border)'}}>Month</button>
+                <button className="cal-nav-btn" onClick={() => setCalendarView('Agenda')}>Agenda</button>
+           </div>
         </div>
         
-        {/* Render Selected Day Tasks */}
-        {selectedCalendarDate && (
-          <div className="calendar-selected-tasks">
-            <h3>Tasks for {selectedCalendarDate.toLocaleString('default', { month: 'short', day: 'numeric', year: 'numeric' })}</h3>
-            <div className="task-list-grid">
-              {uniqueCalendarTasks.filter(t => {
-                if (!t.deadline) return false;
-                const d = new Date(t.deadline);
-                if (isNaN(d.getTime())) return false;
-                return d.getFullYear() === selectedCalendarDate.getFullYear() && d.getMonth() === selectedCalendarDate.getMonth() && d.getDate() === selectedCalendarDate.getDate();
-              }).length === 0 ? (
-                <div className="empty-state" style={{padding: '24px'}}>No pending tasks here.</div>
-              ) : (
-                uniqueCalendarTasks.filter(t => {
-                  if (!t.deadline) return false;
-                  const d = new Date(t.deadline);
-                  if (isNaN(d.getTime())) return false;
-                  return d.getFullYear() === selectedCalendarDate.getFullYear() && d.getMonth() === selectedCalendarDate.getMonth() && d.getDate() === selectedCalendarDate.getDate();
-                }).map(renderTaskCard)
-              )}
-            </div>
-          </div>
-        )}
+        <div className="cal-month-grid">
+           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="cal-header-cell">{d}</div>)}
+           {days.map((day, idx) => {
+              if (!day) return <div key={`empty-${idx}`} className="cal-cell empty"></div>;
+              
+              const localStr = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+              const dayTasks = tasksByDate[localStr] || [];
+              const isToday = day.getTime() === todayMs;
+              
+              return (
+                <div key={localStr} className={`cal-cell ${isToday ? 'is-today' : ''}`}>
+                    <div className="cal-date">{day.getDate()}</div>
+                    {dayTasks.slice(0, 3).map(t => (
+                        <div key={t.id} className={`cal-task-pill ${t.status === 'COMPLETED' ? 'completed' : t.priority === 'HIGH' ? 'high' : getTaskCategory(t) === 'OVERDUE' ? 'overdue' : ''}`}>
+                            {t.task}
+                        </div>
+                    ))}
+                    {dayTasks.length > 3 && <div className="cal-task-pill" style={{opacity: 0.5, border: 'none'}}>+{dayTasks.length - 3} more</div>}
+                </div>
+              );
+           })}
+        </div>
       </div>
     );
   };
 
   return (
     <div className="app-layout">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <h2>WhatsAppTaskManager</h2>
-          <p>Your tasks captured from WhatsApp, organized in one place.</p>
-        </div>
-        <nav className="sidebar-nav">
-          <div className={`nav-item ${currentView === 'TASKS' ? 'active' : ''}`} onClick={() => setCurrentView('TASKS')} style={{cursor: 'pointer'}}>
-            <span className="nav-icon">⊞</span> Tasks
-          </div>
-          <div className={`nav-item ${currentView === 'CALENDAR' ? 'active' : ''}`} onClick={() => setCurrentView('CALENDAR')} style={{cursor: 'pointer'}}>
-            <span className="nav-icon">📅</span> Calendar
-          </div>
-        </nav>
-        <div className="sidebar-footer">
-          <div className={`status-indicator ${backendStatus === 'Connected' ? 'status-online' : backendStatus === 'Offline' ? 'status-offline' : ''}`}>
-            <span className="status-dot"></span> Backend {backendStatus}
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="main-content">
-        <header className="header">
-          <div className="header-top">
-            <div className="account-dropdown-wrapper">
-               <button className="account-dropdown-btn" onClick={() => setAccountMenuOpen(!accountMenuOpen)}>
-                  <div className="account-avatar">A</div>
-                  <span className="account-label">Account</span>
-                  <span className="account-chev">˅</span>
-               </button>
-               {accountMenuOpen && (
-                 <>
-                   <div className="account-dropdown-overlay" onClick={() => setAccountMenuOpen(false)}></div>
-                   <div className="account-dropdown-menu">
-                     <div className="account-dropdown-header">
-                       <span className="account-dropdown-name">Account</span>
-                       <span className="account-dropdown-status">Signed in</span>
-                     </div>
-                     <div className="account-dropdown-actions">
-                       <button className="account-dropdown-item" onClick={() => { setAccountMenuOpen(false); handleLogout(); }}>
-                         ↪ Log out
-                       </button>
-                     </div>
-                   </div>
-                 </>
-               )}
-            </div>
-          </div>
-          <div className="summary-cards">
-            <div className="stat-card">
-              <span className="stat-label">Total</span>
-              <span className="stat-val">{globalTasks.length}</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-label">Pending</span>
-              <span className="stat-val">{globalTasks.filter(t => t.status !== 'COMPLETED' && (!t.deadline || new Date(t.deadline).getTime() >= startOfToday)).length}</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-label">Completed</span>
-              <span className="stat-val">{globalTasks.filter(t => t.status === 'COMPLETED').length}</span>
-            </div>
-            <div className="stat-card overdue">
-              <span className="stat-label">Overdue</span>
-              <span className="stat-val" style={{color: 'var(--status-overdue)'}}>{globalTasks.filter(t => t.status !== 'COMPLETED' && t.deadline && new Date(t.deadline).getTime() < startOfToday).length}</span>
-            </div>
-            <div className="stat-card high-priority">
-              <span className="stat-label">High Priority</span>
-              <span className="stat-val" style={{color: 'var(--status-high)'}}>{globalTasks.filter(t => t.status === 'PENDING' && t.priority === 'HIGH').length}</span>
-            </div>
-          </div>
-
-          {reminders.length > 0 && (
-            <div className="reminders-banner">
-              <div className="reminders-title">Next Reminders ({reminders.length})</div>
-              <ul className="reminders-list">
-                {reminders.map(r => (
-                  <li key={r.taskId}>
-                    <strong>{r.title}</strong> — Due {formatDate(r.deadline)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </header>
-
-        <section className="content-area">
-          <div className="toolbar">
-            <div className="search-input-wrapper">
-              <svg className="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              <input 
-                type="text" 
-                className="search-input" 
-                placeholder="Search tasks, messages..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <span className="search-hint">⌘ K</span>
-            </div>
-            <div className="filters-group">
-              <div className="filter-btn-group">
-                {['ALL', 'PENDING', 'COMPLETED', 'HIGH', 'DUE_TODAY', 'OVERDUE'].map(f => (
-                  <button 
-                    key={f} 
-                    className={`filter-btn ${filter === f ? 'active' : ''}`} 
-                    onClick={() => setFilter(f)}
-                  >
-                    {f === 'HIGH' ? 'High Priority' : f === 'DUE_TODAY' ? 'Due Today' : f === 'OVERDUE' ? 'Overdue' : f === 'ALL' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
-                  </button>
-                ))}
+      {/* Global Topbar */}
+      <header className="global-topbar">
+          <div className="topbar-left">
+              <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
+              <div className="topbar-logo">
+                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                 WhatsAppTaskManager
+                 <span>Workspace</span>
               </div>
-              <div className="sort-group">
-                <select className="sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                  <option value="recent">Recent</option>
-                  <option value="deadline">Deadline</option>
-                  <option value="priority">Priority</option>
-                </select>
-              </div>
-            </div>
           </div>
-
-          {currentView === 'TASKS' ? (
-            <div className="task-list">
-              {loading && renderSkeleton()}
-              {error && (
-                <div className="error-banner">
-                  <div>Unable to load tasks</div>
-                  <div style={{fontSize: '0.8rem', opacity: 0.8, margin: '4px 0 12px 0'}}>Please check your backend connection and try again.</div>
-                  <div><button className="btn-retry" onClick={fetchTasks}>Retry</button></div>
-                </div>
-              )}
-              
-              {!loading && !error && fullyProcessedTasks.length === 0 && (
-                <div className="empty-state">
-                  <div className="empty-state-title">No tasks yet</div>
-                  <div className="empty-state-text">
-                    {searchQuery ? 'No tasks match your search.' : filter === 'PENDING' ? 'No pending tasks found.' : filter === 'COMPLETED' ? 'No completed tasks found.' : 'When WhatsApp messages containing actionable tasks are detected, they\'ll appear here.'}
-                  </div>
-                </div>
-              )}
-
-              {!loading && !error && (
-                <>
-                  {sections.OVERDUE.length > 0 || !isFiltering ? (
-                    <div className="task-section">
-                      <div className="section-label" style={{color: 'var(--status-overdue)'}}>Overdue</div>
-                      {sections.OVERDUE.length === 0 ? (
-                        <div className="empty-state-inline">You have zero overdue tasks! Great job.</div>
-                      ) : (
-                        <div className="task-list-grid">{sections.OVERDUE.map(renderTaskCard)}</div>
-                      )}
+          
+          <div className="search-input-wrapper">
+             <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+             <input type="text" className="search-input" placeholder="Search tasks, messages..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+             <span className="search-hint">⌘ K</span>
+          </div>
+          
+          <div className="topbar-right">
+             <div className="account-dropdown-wrapper">
+                <button className="account-dropdown-btn" onClick={() => setAccountMenuOpen(!accountMenuOpen)}>
+                   <div className="account-avatar">A</div>
+                   <span className="account-label">Account</span>
+                   <span className="account-chev">▼</span>
+                </button>
+                {accountMenuOpen && (
+                  <>
+                    <div className="account-dropdown-overlay" onClick={() => setAccountMenuOpen(false)}></div>
+                    <div className="account-dropdown-menu">
+                      <div className="account-dropdown-header">
+                        <span className="account-dropdown-name">Account Settings</span>
+                        <span className="account-dropdown-status">{backendStatus}</span>
+                      </div>
+                      <button className="account-dropdown-item" onClick={handleLogout}>Log out</button>
                     </div>
-                  ) : null}
-
-                  {sections.TODAY.length > 0 || !isFiltering ? (
-                    <div className="task-section">
-                      <div className="section-label">Today</div>
-                      {sections.TODAY.length === 0 ? (
-                        <div className="empty-state-inline">No tasks due today. Enjoy your day!</div>
-                      ) : (
-                        <div className="task-list-grid">{sections.TODAY.map(renderTaskCard)}</div>
-                      )}
+                  </>
+                )}
+             </div>
+          </div>
+      </header>
+      
+      <div className="app-body">
+          {/* Sidebar */}
+          <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+             <div className="sidebar-section">
+                <div className="sidebar-nav">
+                    <div className={`nav-item ${currentView === 'TASKS' && filter === 'ALL' ? 'active' : ''}`} onClick={() => { setCurrentView('TASKS'); setFilter('ALL'); setSidebarOpen(false); }}>
+                       <span className="nav-icon">Inbox</span> Inbox
                     </div>
-                  ) : null}
-
-                  {(sections.UPCOMING.TOMORROW.length > 0 || sections.UPCOMING.THIS_WEEK.length > 0 || sections.UPCOMING.LATER.length > 0) || !isFiltering ? (
-                    <div className="task-section">
-                      <div className="section-label">Upcoming</div>
-                      {sections.UPCOMING.TOMORROW.length === 0 && sections.UPCOMING.THIS_WEEK.length === 0 && sections.UPCOMING.LATER.length === 0 ? (
-                        <div className="empty-state-inline">No upcoming tasks scheduled yet.</div>
-                      ) : (
-                        <div className="task-list-grid">
-                           {sections.UPCOMING.TOMORROW.length > 0 && <div className="sub-label">Tomorrow</div>}
-                           {sections.UPCOMING.TOMORROW.map(renderTaskCard)}
-
-                           {sections.UPCOMING.THIS_WEEK.length > 0 && <div className="sub-label">This Week</div>}
-                           {sections.UPCOMING.THIS_WEEK.map(renderTaskCard)}
-
-                           {sections.UPCOMING.LATER.length > 0 && <div className="sub-label">Later</div>}
-                           {sections.UPCOMING.LATER.map(renderTaskCard)}
+                    <div className={`nav-item ${currentView === 'TASKS' && filter === 'DUE_TODAY' ? 'active' : ''}`} onClick={() => { setCurrentView('TASKS'); setFilter('DUE_TODAY'); setSidebarOpen(false); }}>
+                       <span className="nav-icon">★</span> Today
+                    </div>
+                    <div className={`nav-item ${currentView === 'CALENDAR' ? 'active' : ''}`} onClick={() => { setCurrentView('CALENDAR'); setSidebarOpen(false); }}>
+                       <span className="nav-icon">📅</span> Calendar
+                    </div>
+                </div>
+             </div>
+             
+             <div className="sidebar-section">
+                <div className="sidebar-label">Your Groups</div>
+                <div className="sidebar-group-list">
+                    {uniqueGroups.length === 0 ? (
+                        <div className="group-item" style={{opacity: 0.5}}>No sources detected</div>
+                    ) : (
+                        uniqueGroups.map(grp => (
+                           <div key={grp} className={`nav-item ${filter === grp ? 'active' : ''}`} onClick={() => { setCurrentView('TASKS'); setFilter(grp); setSidebarOpen(false); }}>
+                               <div className="group-dot"></div>
+                               {grp}
+                           </div>
+                        ))
+                    )}
+                </div>
+             </div>
+             
+             <div className="sidebar-footer">
+                 <div className={`status-indicator ${backendStatus === 'Connected' ? 'status-online' : 'status-offline'}`}>
+                    <div className="status-dot"></div>
+                    Backend {backendStatus}
+                 </div>
+             </div>
+          </aside>
+          
+          {/* Main Workspace */}
+          <main className="main-workspace">
+             <header className="workspace-header">
+                 <div className="workspace-title-row">
+                    <div>
+                        <h1 className="workspace-title">{currentView === 'TASKS' ? (filter === 'ALL' ? 'Inbox' : filter) : 'Calendar'}</h1>
+                        <p className="workspace-subtitle">Manage your WhatsApp-captured tasks</p>
+                    </div>
+                 </div>
+                 
+                 {currentView === 'TASKS' && (
+                     <div className="toolbar">
+                        <div className="filter-btn-group">
+                           {['ALL', 'PENDING', 'COMPLETED', 'HIGH', 'OVERDUE'].map(f => (
+                              <button key={f} className={`filter-btn ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+                                 {f === 'HIGH' ? 'High Priority' : f === 'ALL' ? 'All Tasks' : f.charAt(0) + f.slice(1).toLowerCase()}
+                              </button>
+                           ))}
                         </div>
-                      )}
-                    </div>
-                  ) : null}
-
-                  {sections.NO_DEADLINE.length > 0 && (
-                    <div className="task-section">
-                      <div className="section-label">No Deadline</div>
-                      <div className="task-list-grid">{sections.NO_DEADLINE.map(renderTaskCard)}</div>
-                    </div>
-                  )}
-
-                  {sections.COMPLETED_PAST.length > 0 && (
-                    <div className="task-section">
-                      <div className="section-label">Previously Completed</div>
-                      <div className="task-list-grid">{sections.COMPLETED_PAST.map(renderTaskCard)}</div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          ) : (
-            renderCalendar()
-          )}
-        </section>
-      </main>
-
-      {/* Task Details Modal */}
-      {selectedTask && (
-        <div className="modal-overlay" onClick={() => setSelectedTask(null)}>
-          <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>TASK DETAILS</h2>
-              <button className="modal-close" onClick={() => setSelectedTask(null)}>✕</button>
-            </div>
-            <div className="modal-content">
-              <h3 className="modal-task-title">{selectedTask.task || 'Unnamed Task'}</h3>
-              
-              <div className="modal-meta-grid">
-                <div className="modal-meta-item">
-                  <span className="modal-meta-label">Priority</span>
-                  <span className={`modal-meta-value priority-${selectedTask.priority?.toLowerCase() || 'low'}`}>{selectedTask.priority || 'LOW'} PRIORITY</span>
-                </div>
-                <div className="modal-meta-item">
-                  <span className="modal-meta-label">Status</span>
-                  <span className={`modal-meta-value badge-${selectedTask.status.toLowerCase()}`}>{selectedTask.status}</span>
-                </div>
-                <div className="modal-meta-item">
-                  <span className="modal-meta-label">Deadline</span>
-                  <span className="modal-meta-value">{formatDate(selectedTask.deadline)}</span>
-                </div>
-                <div className="modal-meta-item">
-                  <span className="modal-meta-label">Category</span>
-                  <span className="modal-meta-value">{selectedTask.category || 'N/A'}</span>
-                </div>
-                <div className="modal-meta-item">
-                  <span className="modal-meta-label">Reminder</span>
-                  <span className="modal-meta-value" style={{color: selectedTask.status === 'PENDING' && selectedTask.deadline && getTaskCategory(selectedTask) !== 'OVERDUE' ? 'var(--status-success, #10B981)' : 'var(--text-secondary)'}}>
-                    {selectedTask.status === 'PENDING' && selectedTask.deadline && getTaskCategory(selectedTask) !== 'OVERDUE' ? '🔔 Reminder Set (Native)' : 'No Reminder'}
-                  </span>
-                </div>
-                <div className="modal-meta-item">
-                  <span className="modal-meta-label">Created Date</span>
-                  <span className="modal-meta-value">{formatDate(selectedTask.createdAt || selectedTask.receivedAt)}</span>
-                </div>
-                <div className="modal-meta-item">
-                  <span className="modal-meta-label">Source</span>
-                  <span className="modal-meta-value">{selectedTask.source || 'WhatsApp'}</span>
-                </div>
-                <div className="modal-meta-item">
-                  <span className="modal-meta-label">Sender</span>
-                  <span className="modal-meta-value">{selectedTask.sender}</span>
-                </div>
-              </div>
-
-              <div className="modal-divider"></div>
-
-              <div className="modal-original-msg">
-                <span className="modal-meta-label">Original message</span>
-                <p>"{selectedTask.originalMessage}"</p>
-              </div>
-              
-              <div className="modal-actions">
-                <span className="modal-actions-label">Actions:</span>
-                <div className="task-actions-row" style={{marginTop: 0}}>
-                  {selectedTask.status === 'PENDING' ? (
-                    <button className="btn-action btn-complete" onClick={(e) => handleStatusChange(e, selectedTask.id, 'COMPLETED')}>Complete</button>
-                  ) : (
-                    <button className="btn-action btn-pending" onClick={(e) => handleStatusChange(e, selectedTask.id, 'PENDING')}>Mark Pending</button>
-                  )}
-                  <button className="btn-action btn-delete" onClick={(e) => handleDelete(e, selectedTask.id)}>Delete</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+                        <select className="sort-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                           <option value="recent">Sort by: Recent</option>
+                           <option value="deadline">Sort by: Deadline</option>
+                           <option value="priority">Sort by: Priority</option>
+                        </select>
+                     </div>
+                 )}
+             </header>
+             
+             <div className="content-area">
+                 {currentView === 'TASKS' ? (
+                    <>
+                       {loading && renderSkeleton()}
+                       {error && (
+                         <div className="empty-state">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            Connection Error<br/>
+                            <span style={{opacity: 0.7}}>Check your backend connection</span>
+                         </div>
+                       )}
+                       
+                       {!loading && !error && fullyProcessedTasks.length === 0 && (
+                          <div className="empty-state">
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                              You're all caught up.<br />
+                              <span style={{opacity: 0.7}}>No pending issues found for this filter.</span>
+                          </div>
+                       )}
+                       
+                       {!loading && !error && fullyProcessedTasks.length > 0 && (
+                          <>
+                             {sections.OVERDUE.length > 0 || !isFiltering ? (
+                                <div className="task-section">
+                                  <div className="section-label">Overdue</div>
+                                  <div className="task-list-grid">{sections.OVERDUE.map(renderTaskCard)}</div>
+                                </div>
+                             ) : null}
+                             
+                             {sections.TODAY.length > 0 || !isFiltering ? (
+                                <div className="task-section">
+                                  <div className="section-label">Today</div>
+                                  <div className="task-list-grid">{sections.TODAY.map(renderTaskCard)}</div>
+                                </div>
+                             ) : null}
+                             
+                             {(sections.UPCOMING.TOMORROW.length > 0 || sections.UPCOMING.THIS_WEEK.length > 0 || sections.UPCOMING.LATER.length > 0) || !isFiltering ? (
+                                <div className="task-section">
+                                  <div className="section-label">Upcoming</div>
+                                  <div className="task-list-grid">
+                                     {sections.UPCOMING.TOMORROW.length > 0 && <div className="sub-label">Tomorrow</div>}
+                                     {sections.UPCOMING.TOMORROW.map(renderTaskCard)}
+                                     
+                                     {sections.UPCOMING.THIS_WEEK.length > 0 && <div className="sub-label">This Week</div>}
+                                     {sections.UPCOMING.THIS_WEEK.map(renderTaskCard)}
+                                     
+                                     {sections.UPCOMING.LATER.length > 0 && <div className="sub-label">Later</div>}
+                                     {sections.UPCOMING.LATER.map(renderTaskCard)}
+                                  </div>
+                                </div>
+                             ) : null}
+                             
+                             {sections.NO_DEADLINE.length > 0 && (
+                                <div className="task-section">
+                                  <div className="section-label">No Deadline</div>
+                                  <div className="task-list-grid">{sections.NO_DEADLINE.map(renderTaskCard)}</div>
+                                </div>
+                             )}
+                          </>
+                       )}
+                    </>
+                 ) : (
+                    renderCalendar()
+                 )}
+             </div>
+          </main>
+          
+          {/* Right Rail Context */}
+          <aside className="right-rail">
+             <div className="rail-section">
+                 <h3 className="rail-title">Quick Metrics</h3>
+                 <div className="quick-metrics">
+                     <div className="metric-row">Total Tasks <span>{globalTasks.length}</span></div>
+                     <div className="metric-row">Pending <span>{globalTasks.filter(t => t.status !== 'COMPLETED').length}</span></div>
+                     <div className="metric-row" style={{color: 'var(--status-completed)'}}>Completed <span style={{background: 'var(--status-completed-bg)'}}>{globalTasks.filter(t => t.status === 'COMPLETED').length}</span></div>
+                     <div className="metric-row" style={{color: 'var(--status-overdue)'}}>Overdue <span style={{background: 'var(--status-overdue-bg)'}}>{globalTasks.filter(t => t.status !== 'COMPLETED' && t.deadline && new Date(t.deadline).getTime() < startOfToday).length}</span></div>
+                     <div className="metric-row" style={{color: 'var(--status-high)'}}>High Priority <span style={{background: 'var(--status-high-bg)'}}>{globalTasks.filter(t => t.status === 'PENDING' && t.priority === 'HIGH').length}</span></div>
+                 </div>
+             </div>
+             
+             <div className="rail-section">
+                 <h3 className="rail-title">Today's Agenda</h3>
+                 {sections.TODAY.length === 0 ? (
+                     <div style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>No events today.</div>
+                 ) : (
+                     <div className="agenda-list">
+                         {sections.TODAY.map(t => (
+                             <div className="agenda-item" key={`agenda-${t.id}`}>
+                                 <div className="agenda-time">
+                                     {t.deadline ? new Date(t.deadline).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+                                 </div>
+                                 <div className="agenda-content">
+                                     {t.task}
+                                     <span>{t.sender}</span>
+                                 </div>
+                             </div>
+                         ))}
+                     </div>
+                 )}
+             </div>
+          </aside>
+      </div>
 
       {toastMessage && (
         <div className="toast-notification">
