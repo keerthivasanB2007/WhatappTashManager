@@ -197,6 +197,49 @@ export default function App() {
     }
   });
 
+  // 4. DISPLAY-ONLY Deduplication Helper
+  const getUniqueTasks = (tasks) => {
+    const getNormalizedString = (str) => (str || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+    const uniqueTasks = [];
+    const seenOriginalMessages = new Set();
+    const seenTitlesWithDeadlines = new Set();
+    const seenIds = new Set();
+
+    for (const t of tasks) {
+      if (seenIds.has(t.id)) continue;
+      
+      const sender = (t.sender || '').trim().toLowerCase();
+      const deadlineTime = t.deadline ? new Date(t.deadline).getTime() : 'no_deadline';
+      
+      const normMsg = t.originalMessage ? getNormalizedString(t.originalMessage) : '';
+      // Require sender + exact originalMessage + same deadline
+      const msgKey = normMsg ? `msg_${sender}_${normMsg}_${deadlineTime}` : null;
+      
+      const normTitle = t.task ? getNormalizedString(t.task) : '';
+      // Require sender + exact title + same deadline
+      const titleKey = normTitle ? `title_${sender}_${normTitle}_${deadlineTime}` : null;
+      
+      let isDuplicate = false;
+      
+      if (msgKey && seenOriginalMessages.has(msgKey)) {
+        isDuplicate = true;
+      } else if (titleKey && seenTitlesWithDeadlines.has(titleKey)) {
+        isDuplicate = true;
+      }
+      
+      if (!isDuplicate) {
+        seenIds.add(t.id);
+        if (msgKey) seenOriginalMessages.add(msgKey);
+        if (titleKey) seenTitlesWithDeadlines.add(titleKey);
+        uniqueTasks.push(t);
+      }
+    }
+    return uniqueTasks;
+  };
+
+  fullyProcessedTasks = getUniqueTasks(fullyProcessedTasks);
+
   const isFiltering = filter !== 'ALL' || searchQuery !== '';
 
   const sections = {
@@ -298,9 +341,12 @@ export default function App() {
 
     const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
+    // Deduplicate calendar views based on chronological sort (recent first bias for conflicts)
+    const uniqueCalendarTasks = getUniqueTasks([...globalTasks].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+
     // Group tasks per date
     const tasksByDate = {};
-    globalTasks.forEach(t => {
+    uniqueCalendarTasks.forEach(t => {
       if (!t.deadline) return;
       const d = new Date(t.deadline);
       if (isNaN(d.getTime())) return;
@@ -368,7 +414,7 @@ export default function App() {
           <div className="calendar-selected-tasks">
             <h3>Tasks for {selectedCalendarDate.toLocaleString('default', { month: 'short', day: 'numeric', year: 'numeric' })}</h3>
             <div className="task-list-grid">
-              {globalTasks.filter(t => {
+              {uniqueCalendarTasks.filter(t => {
                 if (!t.deadline) return false;
                 const d = new Date(t.deadline);
                 if (isNaN(d.getTime())) return false;
@@ -376,7 +422,7 @@ export default function App() {
               }).length === 0 ? (
                 <div className="empty-state" style={{padding: '24px'}}>No pending tasks here.</div>
               ) : (
-                globalTasks.filter(t => {
+                uniqueCalendarTasks.filter(t => {
                   if (!t.deadline) return false;
                   const d = new Date(t.deadline);
                   if (isNaN(d.getTime())) return false;
