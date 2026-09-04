@@ -33,6 +33,7 @@ export function useAuth() {
     } finally {
         setIsAuthenticated(false);
         localStorage.removeItem('auth_active');
+        window.dispatchEvent(new CustomEvent('auth-expired'));
     }
   };
 
