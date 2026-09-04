@@ -5,7 +5,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { getTaskCategory, getUniqueTasks } from '../../utils/taskUtils';
 
 // Helper component for the "+N More" popover using Floating UI natively correctly constraining DOM explosions!
-function MoreTasksPopover({ tasks }) {
+function MoreTasksPopover({ tasks, onSelectTask }) {
   const [isOpen, setIsOpen] = useState(false);
   
   const { refs, floatingStyles, context } = useFloating({
@@ -44,9 +44,9 @@ function MoreTasksPopover({ tasks }) {
             <div className="cal-more-header">Overflow Tasks ({tasks.length})</div>
             <div className="cal-more-tasklist">
               {tasks.map(t => (
-                 <div key={t.id} className={`cal-task-pill ${t.status === 'COMPLETED' ? 'completed' : t.priority === 'HIGH' ? 'high' : getTaskCategory(t) === 'OVERDUE' ? 'overdue' : ''}`} title={t.task}>
+                 <button key={t.id} className={`cal-task-pill ${t.status === 'COMPLETED' ? 'completed' : t.priority === 'HIGH' ? 'high' : getTaskCategory(t) === 'OVERDUE' ? 'overdue' : ''}`} title={t.task} onClick={() => onSelectTask(t.id)}>
                      {t.task}
-                 </div>
+                 </button>
               ))}
             </div>
           </div>
@@ -58,7 +58,7 @@ function MoreTasksPopover({ tasks }) {
 
 export default function CalendarRoot() {
   const { globalTasks } = useTasks();
-  const { calendarDate, setCalendarDate, calendarView, setCalendarView, filter } = useAppState();
+  const { calendarDate, setCalendarDate, calendarView, setCalendarView, filter, setSelectedTaskId } = useAppState();
 
   // Mobile Default Trigger - Safely evaluates execution bounds minimizing lifecycle re-renders explicitly. 
   useEffect(() => {
@@ -156,7 +156,7 @@ export default function CalendarRoot() {
                            <div className="cal-agenda-date">{headerLabel}</div>
                            <div className="agenda-item-list" style={{display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '8px'}}>
                              {groupedAgenda[dKey].map(t => (
-                                <div className="agenda-item" key={t.id}>
+                                <button className="agenda-item" key={t.id} onClick={() => setSelectedTaskId(t.id)}>
                                     <div className="agenda-time">
                                         {new Date(t.deadline).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit'})}
                                     </div>
@@ -166,7 +166,7 @@ export default function CalendarRoot() {
                                             {t.sender} · {t.status === 'COMPLETED' ? 'Completed' : t.priority === 'HIGH' ? 'High Priority' : 'Pending'} {t.originalMessage ? '· Msg attached' : ''}
                                         </div>
                                     </div>
-                                </div>
+                                </button>
                              ))}
                            </div>
                        </div>
@@ -235,11 +235,11 @@ export default function CalendarRoot() {
                 <div key={localStr} className={`cal-cell ${isToday ? 'is-today' : ''}`}>
                     <div className="cal-date">{day.getDate()}</div>
                     {dayTasks.slice(0, 3).map(t => (
-                        <div key={t.id} className={`cal-task-pill ${t.status === 'COMPLETED' ? 'completed' : t.priority === 'HIGH' ? 'high' : getTaskCategory(t) === 'OVERDUE' ? 'overdue' : ''}`} title={t.task}>
+                        <button key={t.id} className={`cal-task-pill ${t.status === 'COMPLETED' ? 'completed' : t.priority === 'HIGH' ? 'high' : getTaskCategory(t) === 'OVERDUE' ? 'overdue' : ''}`} title={t.task} onClick={() => setSelectedTaskId(t.id)}>
                             {t.task}
-                        </div>
+                        </button>
                     ))}
-                    {dayTasks.length > 3 && <MoreTasksPopover tasks={dayTasks.slice(3)} />}
+                    {dayTasks.length > 3 && <MoreTasksPopover tasks={dayTasks.slice(3)} onSelectTask={setSelectedTaskId} />}
                 </div>
               );
            })}

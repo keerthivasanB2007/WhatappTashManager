@@ -763,6 +763,17 @@ a { text-decoration: none; color: inherit; }
 .task-detail-action-primary { background: var(--text-primary); border-color: var(--text-primary); color: var(--surface); }
 .task-detail-action-primary:hover { background: var(--text-secondary); color: var(--surface); }
 .task-detail-action-danger { color: var(--status-overdue); }
+.task-detail-checkbox {
+  width: 14px;
+  height: 14px;
+  display: inline-grid;
+  place-items: center;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  line-height: 1;
+}
+.task-detail-checkbox.checked { background: currentColor; color: var(--surface); }
 .rail-section { display: flex; flex-direction: column; gap: 12px; }
 .rail-title { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin: 0; letter-spacing: 0.05em; }
 
@@ -1039,4 +1050,61 @@ a { text-decoration: none; color: inherit; }
     justify-content: space-between;
     margin-top: 4px;
   }
+}
+
+/* Task details overlay and adjustable workspace panels */
+.app-body { position: relative; }
+.sidebar { width: var(--sidebar-width); }
+.right-rail { width: var(--rail-width); }
+.panel-resize-handle {
+  width: 5px;
+  flex: 0 0 5px;
+  cursor: col-resize;
+  position: relative;
+  z-index: 2;
+  background: transparent;
+}
+.panel-resize-handle:hover,
+.panel-resize-handle:active { background: var(--border-focus); }
+.panel-resize-handle-rail { order: 2; }
+.right-rail { order: 3; }
+.task-list-workspace { width: auto; max-width: 1000px; flex: 1 1 auto; border-left: 0; order: 1; }
+.task-details-backdrop {
+  position: fixed;
+  inset: var(--header-height) 0 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(17, 24, 39, 0.18);
+}
+.task-details-dialog {
+  width: min(680px, 100%);
+  max-height: min(760px, calc(100vh - 80px));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 50px rgba(17, 24, 39, 0.18), 0 4px 12px rgba(17, 24, 39, 0.08);
+  overflow: hidden;
+}
+.task-details-dialog .task-details {
+  width: 100%;
+  max-height: min(760px, calc(100vh - 80px));
+  border: 0;
+}
+.task-details-dialog .task-details-close-label { display: none; }
+.task-details-message { max-height: 260px; overflow-y: auto; }
+.task-details-dialog .task-details-actions { background: var(--surface); }
+.task-item-selected { background: #F3F4F6; }
+.task-checkbox-btn svg { width: 16px; height: 16px; }
+.cal-task-pill,
+.agenda-item { font: inherit; text-align: left; cursor: pointer; }
+
+@media (max-width: 768px) {
+  .panel-resize-handle { display: none; }
+  .task-list-workspace { width: 100%; max-width: none; }
+  .right-rail { display: none; }
+  .task-details-backdrop { inset: var(--header-height) 0 0; padding: 0; background: var(--surface); }
+  .task-details-dialog,
+  .task-details-dialog .task-details { max-height: none; height: 100%; border-radius: 0; }
 }

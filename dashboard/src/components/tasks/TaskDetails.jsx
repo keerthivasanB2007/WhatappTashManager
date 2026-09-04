@@ -68,7 +68,7 @@ export default function TaskDetails({ task }) {
             {task.priority && <span className="task-details-priority">{task.priority}</span>}
           </div>
         </div>
-        <button className="task-details-close" onClick={() => setSelectedTaskId(null)} aria-label="Back to task list"><span className="task-details-close-label">Back</span><span aria-hidden="true">×</span></button>
+        <button className="task-details-close" onClick={() => setSelectedTaskId(null)} aria-label="Close task details"><span aria-hidden="true">×</span></button>
       </div>
 
       <div className="task-details-scroll">
@@ -99,7 +99,8 @@ export default function TaskDetails({ task }) {
 
       <div className="task-details-actions">
         <button className="task-detail-action task-detail-action-primary" onClick={handleStatusToggle}>
-          {isCompleted ? 'Mark as Pending' : 'Mark Complete'}
+          <span className={`task-detail-checkbox ${isCompleted ? 'checked' : ''}`} aria-hidden="true">{isCompleted ? '✓' : ''}</span>
+          {isCompleted ? 'Completed' : 'Mark Complete'}
         </button>
         <button className="task-detail-action task-detail-action-danger" onClick={handleDelete}>Delete</button>
       </div>
