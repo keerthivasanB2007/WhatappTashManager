@@ -6,7 +6,7 @@ import TaskRow from './TaskRow';
 
 export default function TaskList() {
   const { globalTasks, isLoading, isError } = useTasks();
-  const { filter, sortBy, searchQuery, setFilter, setSortBy } = useAppState();
+   const { filter, sortBy, searchQuery, setFilter, setSortBy, selectedTaskId, setSelectedTaskId } = useAppState();
 
   const fullyProcessedTasks = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -79,7 +79,7 @@ export default function TaskList() {
   );
 
   return (
-    <>
+   <main className="main-workspace task-list-workspace">
       <header className="workspace-header">
          <div className="workspace-title-row">
             <div>
@@ -127,14 +127,14 @@ export default function TaskList() {
                  {sections.OVERDUE.length > 0 || !isFiltering ? (
                     <div className="task-section">
                       <div className="section-label">Overdue</div>
-                      <div className="task-list-grid">{sections.OVERDUE.map(t => <TaskRow key={t.id} task={t} />)}</div>
+                      <div className="task-list-grid">{sections.OVERDUE.map(t => <TaskRow key={t.id} task={t} isSelected={selectedTaskId === t.id} onSelect={setSelectedTaskId} />)}</div>
                     </div>
                  ) : null}
                  
                  {sections.TODAY.length > 0 || !isFiltering ? (
                     <div className="task-section">
                       <div className="section-label">Today</div>
-                      <div className="task-list-grid">{sections.TODAY.map(t => <TaskRow key={t.id} task={t} />)}</div>
+                      <div className="task-list-grid">{sections.TODAY.map(t => <TaskRow key={t.id} task={t} isSelected={selectedTaskId === t.id} onSelect={setSelectedTaskId} />)}</div>
                     </div>
                  ) : null}
                  
@@ -143,13 +143,13 @@ export default function TaskList() {
                       <div className="section-label">Upcoming</div>
                       <div className="task-list-grid">
                          {sections.UPCOMING.TOMORROW.length > 0 && <div className="sub-label">Tomorrow</div>}
-                         {sections.UPCOMING.TOMORROW.map(t => <TaskRow key={t.id} task={t} />)}
+                         {sections.UPCOMING.TOMORROW.map(t => <TaskRow key={t.id} task={t} isSelected={selectedTaskId === t.id} onSelect={setSelectedTaskId} />)}
                          
                          {sections.UPCOMING.THIS_WEEK.length > 0 && <div className="sub-label">This Week</div>}
-                         {sections.UPCOMING.THIS_WEEK.map(t => <TaskRow key={t.id} task={t} />)}
+                         {sections.UPCOMING.THIS_WEEK.map(t => <TaskRow key={t.id} task={t} isSelected={selectedTaskId === t.id} onSelect={setSelectedTaskId} />)}
                          
                          {sections.UPCOMING.LATER.length > 0 && <div className="sub-label">Later</div>}
-                         {sections.UPCOMING.LATER.map(t => <TaskRow key={t.id} task={t} />)}
+                         {sections.UPCOMING.LATER.map(t => <TaskRow key={t.id} task={t} isSelected={selectedTaskId === t.id} onSelect={setSelectedTaskId} />)}
                       </div>
                     </div>
                  ) : null}
@@ -157,12 +157,12 @@ export default function TaskList() {
                  {sections.NO_DEADLINE.length > 0 && (
                     <div className="task-section">
                       <div className="section-label">No Deadline</div>
-                      <div className="task-list-grid">{sections.NO_DEADLINE.map(t => <TaskRow key={t.id} task={t} />)}</div>
+                      <div className="task-list-grid">{sections.NO_DEADLINE.map(t => <TaskRow key={t.id} task={t} isSelected={selectedTaskId === t.id} onSelect={setSelectedTaskId} />)}</div>
                     </div>
                  )}
               </>
           )}
       </div>
-    </>
+   </main>
   );
 }

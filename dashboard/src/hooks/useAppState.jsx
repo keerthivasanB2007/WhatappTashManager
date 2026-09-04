@@ -9,6 +9,7 @@ export function AppStateProvider({ children }) {
   const [currentView, setCurrentView] = useState('TASKS'); // 'TASKS' or 'CALENDAR'
   const [calendarView, setCalendarView] = useState('Month'); // 'Month' or 'Agenda'
   const [calendarDate, setCalendarDate] = useState(new Date());
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
   
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [backendStatus, setBackendStatus] = useState('Connected');
@@ -21,6 +22,7 @@ export function AppStateProvider({ children }) {
       currentView, setCurrentView,
       calendarView, setCalendarView,
       calendarDate, setCalendarDate,
+      selectedTaskId, setSelectedTaskId,
       sidebarOpen, setSidebarOpen,
       backendStatus, setBackendStatus
     }}>

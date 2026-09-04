@@ -2,7 +2,7 @@ import React from 'react';
 import { useTasks } from '../../hooks/useTasks';
 import { getTaskCategory, formatDate, extractUrl } from '../../utils/taskUtils';
 
-export default function TaskRow({ task }) {
+export default function TaskRow({ task, isSelected, onSelect }) {
   const { updateStatus, deleteTask, globalTasks } = useTasks();
   
   const url = extractUrl(task.originalMessage);
@@ -29,7 +29,7 @@ export default function TaskRow({ task }) {
   const duplicatesCount = globalTasks.filter(t => t.task === task.task && t.sender === task.sender && t.deadline === task.deadline).length;
 
   return (
-    <div className={`task-item ${isCompleted ? 'task-item-completed' : ''}`}>
+    <div className={`task-item ${isCompleted ? 'task-item-completed' : ''} ${isSelected ? 'task-item-selected' : ''}`} onClick={() => onSelect?.(task.id)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect?.(task.id); }}>
         <div className="task-checkbox-container">
            <button 
               className={`task-checkbox-btn ${isCompleted ? 'completed' : ''}`} 
