@@ -20,7 +20,12 @@ const corsOptions = {
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
 
-        if (process.env.DASHBOARD_ORIGIN && process.env.DASHBOARD_ORIGIN === origin) {
+        let allowedDashboard = process.env.DASHBOARD_ORIGIN;
+        if (allowedDashboard && allowedDashboard.endsWith('/')) {
+            allowedDashboard = allowedDashboard.slice(0, -1);
+        }
+
+        if (allowedDashboard && allowedDashboard === origin) {
             return callback(null, true);
         }
 
@@ -29,6 +34,7 @@ const corsOptions = {
             return callback(null, true);
         }
         
+        console.log(`CORS rejected origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
     }
 };
