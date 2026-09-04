@@ -143,6 +143,12 @@ app.post('/api/auth/login', async (req, res) => {
 
         res.json({ success: true, message: 'Logged in successfully' });
     } catch(err) {
+        console.error('LOGIN ERROR:', {
+            name: err?.name,
+            message: err?.message,
+            code: err?.code,
+            stack: err?.stack
+        });
         res.status(500).json({ success: false, message: 'Internal Server Error' });
     }
 });
