@@ -11,7 +11,7 @@ function MainApp() {
   const { isAuthenticated } = useAuth();
   
   if (!isAuthenticated) {
-    return <Login />;
+    return <Login onLogin={() => setIsAuthenticated(true)} />;
   }
 
   return (

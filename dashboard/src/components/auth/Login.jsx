@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 
-export default function Login() {
+export default function Login({ onLogin }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,6 +20,7 @@ export default function Login() {
     
     try {
       await login(email, password);
+      onLogin();
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed.');
     } finally {
