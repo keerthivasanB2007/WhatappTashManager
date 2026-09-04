@@ -121,6 +121,7 @@ app.post('/api/auth/login', async (req, res) => {
         expiresAt.setDate(expiresAt.getDate() + 7);
         await prisma.session.create({
             data: {
+                id: require('crypto').randomUUID(),
                 userId: user.id,
                 refreshToken,
                 expiresAt

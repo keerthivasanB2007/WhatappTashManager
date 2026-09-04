@@ -27,4 +27,14 @@ model User {
   email        String   @unique
   passwordHash String
   createdAt    DateTime @default(now())
+  sessions     Session[]
+}
+
+model Session {
+  id           String   @id
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
 }
