@@ -8,7 +8,7 @@ import AppShell from './components/layout/AppShell';
 const queryClient = new QueryClient();
 
 function MainApp() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, setIsAuthenticated } = useAuth();
   
   if (!isAuthenticated) {
     return <Login onLogin={() => setIsAuthenticated(true)} />;
