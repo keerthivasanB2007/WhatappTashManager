@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 const cors = require('cors');
 const Groq = require('groq-sdk');
@@ -15,6 +16,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 const corsOptions = {
+    credentials: true,
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
 
@@ -22,7 +24,8 @@ const corsOptions = {
             return callback(null, true);
         }
 
-        if (process.env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin)) {
+        // Explicitly whitelist designated local ports enabling backend bridging against Vercel/Render productions natively securely
+        if (origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:5173|:5174|:3000)?$/.test(origin)) {
             return callback(null, true);
         }
         
@@ -32,6 +35,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
 
 // Decoupled architecture natively targeting distributed cloud origins.
 const activeProcessing = new Set();
@@ -51,8 +55,18 @@ app.get('/health', (req, res) => {
 
 // Auth Middleware
 const authenticateToken = (req, res, next) => {
+    let token = null;
+
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+    } else {
+        token = req.cookies?.accessToken;
+        if (token && req.method !== 'GET' && req.method !== 'OPTIONS' && req.headers['x-requested-with'] !== 'XMLHttpRequest') {
+            return res.status(403).json({ success: false, message: 'CSRF token missing or incorrect' });
+        }
+    }
+
     if (!token) return res.status(401).json({ success: false, message: 'Access Denied: No Token Provided' });
 
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
@@ -94,17 +108,88 @@ app.post('/api/auth/login', async (req, res) => {
         const validPass = await bcrypt.compare(password, user.passwordHash);
         if (!validPass) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
-        const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
-        res.json({ success: true, token });
+        const accessToken = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '15m' });
+        const refreshToken = require('crypto').randomBytes(40).toString('hex');
+        
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+        await prisma.session.create({
+            data: {
+                userId: user.id,
+                refreshToken,
+                expiresAt
+            }
+        });
+
+        res.cookie('accessToken', accessToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'None',
+            maxAge: 15 * 60 * 1000
+        });
+
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'None',
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+
+        res.json({ success: true, message: 'Logged in successfully' });
     } catch(err) {
         res.status(500).json({ success: false, message: 'Internal Server Error' });
     }
 });
 
+// POST /api/auth/refresh
+app.post('/api/auth/refresh', async (req, res) => {
+    try {
+        if (req.headers['x-requested-with'] !== 'XMLHttpRequest') {
+            return res.status(403).json({ success: false, message: 'CSRF token missing' });
+        }
+        
+        const refreshToken = req.cookies?.refreshToken;
+        if (!refreshToken) return res.status(401).json({ success: false, message: 'No refresh token' });
+        
+        const session = await prisma.session.findUnique({ where: { refreshToken }, include: { user: true } });
+        if (!session || session.expiresAt < new Date()) {
+            return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+        }
+        
+        const accessToken = jwt.sign({ id: session.user.id, email: session.user.email }, process.env.JWT_SECRET, { expiresIn: '15m' });
+        
+        res.cookie('accessToken', accessToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'None',
+            maxAge: 15 * 60 * 1000
+        });
+        
+        res.json({ success: true, message: 'Token refreshed' });
+    } catch(err) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+// POST /api/auth/logout
+app.post('/api/auth/logout', async (req, res) => {
+    try {
+        const refreshToken = req.cookies?.refreshToken;
+        if (refreshToken) {
+            await prisma.session.deleteMany({ where: { refreshToken } });
+        }
+        res.clearCookie('accessToken', { httpOnly: true, secure: true, sameSite: 'None' });
+        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'None' });
+        res.json({ success: true, message: 'Logged out' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Internal Server Error' });
+    }
+});
+
 // Messages endpoint
-app.post('/api/messages', async (req, res) => {
+app.post('/api/messages', authenticateToken, async (req, res) => {
   try {
-      const { source, sender, message, receivedAt } = req.body;
+      let { source, sender, message, receivedAt } = req.body;
 
       if (!source || !sender || !message || !receivedAt) {
         return res.status(400).json({
@@ -112,8 +197,15 @@ app.post('/api/messages', async (req, res) => {
           message: 'Missing required fields: source, sender, message, receivedAt'
         });
       }
+      
+      const normalizeSender = (s) => {
+          if (!s) return null;
+          return s.trim().replace(/\s*\(\d+\s*messages?\)/gi, '').trim().toLowerCase();
+      };
+      
+      const senderKey = normalizeSender(sender);
 
-      const deduplicationKey = `${source}-${sender}-${message}`;
+      const deduplicationKey = `${source}-${senderKey}-${message}`;
       
       // 1. Race Condition Memory Lock
       if (activeProcessing.has(deduplicationKey)) {
@@ -127,7 +219,8 @@ app.post('/api/messages', async (req, res) => {
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
       const duplicate = await prisma.task.findFirst({
           where: {
-              sender,
+              userId: req.user.id,
+              senderKey,
               originalMessage: message,
               createdAt: { gte: fiveMinutesAgo }
           }
@@ -216,7 +309,7 @@ Task: ${aiResult.isTask}`);
           // we force horizontal replicas to queue linearly for this specific notification fingerprint dynamically!
           
           let hash = 0;
-          const keyStr = `${sender}-${message}`;
+          const keyStr = `${senderKey}-${message}`;
           for (let i = 0; i < keyStr.length; i++) hash = ((hash << 5) - hash) + keyStr.charCodeAt(i) | 0;
           const lockKey = hash; // 32-bit collision-resistant footprint
 
@@ -227,7 +320,8 @@ Task: ${aiResult.isTask}`);
                   
                   const crossReplicaDuplicate = await tx.task.findFirst({
                       where: {
-                          sender,
+                          userId: req.user.id,
+                          senderKey,
                           originalMessage: message,
                           createdAt: { gte: fiveMinutesAgo }
                       }
@@ -240,8 +334,10 @@ Task: ${aiResult.isTask}`);
 
                   const newTask = await tx.task.create({
                       data: {
+                          userId: req.user.id,
                           source,
                           sender,
+                          senderKey,
                           originalMessage: message,
                           task: aiResult.task || null,
                           category: aiResult.category || 'important_information',
@@ -289,7 +385,7 @@ Task: ${aiResult.isTask}`);
 // GET /api/tasks
 app.get('/api/tasks', authenticateToken, async (req, res) => {
     try {
-        let tasks = await taskStore.getTasks();
+        let tasks = await taskStore.getTasks(req.user.id);
         const { status, priority, category, sort } = req.query;
 
         if (status) tasks = tasks.filter(t => t.status === status);
@@ -316,7 +412,7 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
 // GET /api/tasks/:id
 app.get('/api/tasks/:id', authenticateToken, async (req, res) => {
     try {
-        const task = await taskStore.getTaskById(req.params.id);
+        const task = await taskStore.getTaskById(req.params.id, req.user.id);
         if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
         res.json({ success: true, task });
     } catch(err) {
@@ -336,7 +432,7 @@ app.patch('/api/tasks/:id', authenticateToken, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid status. Use PENDING or COMPLETED.' });
         }
 
-        const updatedTask = await taskStore.updateTask(req.params.id, { status });
+        const updatedTask = await taskStore.updateTask(req.params.id, req.user.id, { status });
         if (!updatedTask) return res.status(404).json({ success: false, message: 'Task not found' });
         res.json({ success: true, message: 'Task updated', task: updatedTask });
     } catch(err) {
@@ -347,7 +443,7 @@ app.patch('/api/tasks/:id', authenticateToken, async (req, res) => {
 // DELETE /api/tasks/:id
 app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
     try {
-        const success = await taskStore.deleteTask(req.params.id);
+        const success = await taskStore.deleteTask(req.params.id, req.user.id);
         if (!success) return res.status(404).json({ success: false, message: 'Task not found' });
         res.json({ success: true, message: 'Task deleted' });
     } catch(err) {
@@ -356,9 +452,9 @@ app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
 });
 
 // GET /api/reminders
-app.get('/api/reminders', async (req, res) => {
+app.get('/api/reminders', authenticateToken, async (req, res) => {
     try {
-        const reminders = await reminderService.getEligibleReminders();
+        const reminders = await reminderService.getEligibleReminders(req.user.id);
         res.json({ success: true, count: reminders.length, reminders });
     } catch (error) {
         console.error(error);
@@ -367,13 +463,13 @@ app.get('/api/reminders', async (req, res) => {
 });
 
 // POST /api/reminders/:taskId/sent
-app.post('/api/reminders/:taskId/sent', async (req, res) => {
+app.post('/api/reminders/:taskId/sent', authenticateToken, async (req, res) => {
     try {
-        const task = await taskStore.getTaskById(req.params.taskId);
+        const task = await taskStore.getTaskById(req.params.taskId, req.user.id);
         if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
         if (task.status === 'COMPLETED') return res.status(400).json({ success: false, message: 'Task is already completed' });
         
-        const updatedTask = await taskStore.updateTask(req.params.taskId, { reminderSent: true });
+        const updatedTask = await taskStore.updateTask(req.params.taskId, req.user.id, { reminderSent: true });
         res.json({ success: true, message: 'Reminder marked as sent', task: updatedTask });
     } catch(err) {
         res.status(500).json({ success: false, message: 'Internal Server Error' });
