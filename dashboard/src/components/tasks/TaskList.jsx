@@ -102,21 +102,13 @@ export default function TaskList() {
           // In overdue view/section, checkbox handles selection for triage
           const isOverdueTriage = (filter === 'OVERDUE' || filter === 'TODAY') && getTaskCategory(t) === 'OVERDUE';
           
-          return (
+         return (
              <div key={t.id} style={{ display: 'flex', alignItems: 'center' }} className="task-row-wrapper">
-                 {isOverdueTriage && (
-                     <div style={{ padding: '0 8px 0 16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }} onClick={(e) => toggleBulkSelect(t.id, e)}>
-                         <button className={`task-checkbox-square ${isSelectedForBulk ? 'checked' : ''}`}>
-                             {isSelectedForBulk && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                         </button>
-                     </div>
-                 )}
-                 <div style={{ flex: 1 }}>
+                 <div style={{ flex: 1, minWidth: 0 }}>
                      <TaskRow 
                          task={t} 
                          isSelected={selectedTaskId === t.id} 
                          onSelect={setSelectedTaskId} 
-                         hideCheckbox={isOverdueTriage} // we handle it left of the row for bulk mode
                      />
                  </div>
              </div>

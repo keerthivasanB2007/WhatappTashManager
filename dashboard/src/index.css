@@ -393,22 +393,24 @@ a { text-decoration: none; color: inherit; }
   overflow-x: hidden;
 }
 .task-list-workspace {
-  width: 390px;
-  max-width: 390px;
-  flex: 0 0 390px;
+  width: auto;
+  max-width: none;
+  flex: 1;
+  min-width: 0;
   border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
 }
 .task-list-workspace .toolbar {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
 }
 .task-list-workspace .filter-btn-group {
-  width: 100%;
+  width: auto;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding-bottom: 0;
 }
-.task-list-workspace .sort-select { align-self: flex-end; }
+.task-list-workspace .sort-select { align-self: center; }
 .workspace-header {
   padding: 24px 32px 16px 32px;
   background: var(--bg-color);
