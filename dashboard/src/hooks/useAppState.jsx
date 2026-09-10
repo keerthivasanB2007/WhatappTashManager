@@ -3,8 +3,8 @@ import React, { createContext, useContext, useState } from 'react';
 const BaseContext = createContext();
 
 export function AppStateProvider({ children }) {
-  const [filter, setFilter] = useState('ALL');
-  const [sortBy, setSortBy] = useState('recent');
+  const [filter, setFilter] = useState('TODAY');
+  const [sortBy, setSortBy] = useState('deadline');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentView, setCurrentView] = useState('TASKS'); // 'TASKS' or 'CALENDAR'
   const [calendarView, setCalendarView] = useState('Month'); // 'Month' or 'Agenda'

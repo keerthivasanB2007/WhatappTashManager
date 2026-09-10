@@ -98,8 +98,10 @@ export default function TaskDetails({ task }) {
       </div>
 
       <div className="task-details-actions">
-        <button className="task-detail-action task-detail-action-primary" onClick={handleStatusToggle}>
-          <span className={`task-detail-checkbox ${isCompleted ? 'checked' : ''}`} aria-hidden="true">{isCompleted ? '✓' : ''}</span>
+        <button className="task-detail-action task-detail-action-primary" style={{ display: 'flex', alignItems: 'center', gap: '10px' }} onClick={handleStatusToggle}>
+          <div className={`task-checkbox-square ${isCompleted ? 'checked' : ''}`} aria-hidden="true">
+             {isCompleted && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+          </div>
           {isCompleted ? 'Completed' : 'Mark Complete'}
         </button>
         <button className="task-detail-action task-detail-action-danger" onClick={handleDelete}>Delete</button>

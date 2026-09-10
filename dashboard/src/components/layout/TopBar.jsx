@@ -6,6 +6,18 @@ export default function TopBar() {
   const { searchQuery, setSearchQuery, sidebarOpen, setSidebarOpen, backendStatus } = useAppState();
   const { logout } = useAuth();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const searchInputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          searchInputRef.current?.focus();
+       }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <header className="global-topbar">
@@ -20,7 +32,7 @@ export default function TopBar() {
       
       <div className="search-input-wrapper">
          <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-         <input type="text" className="search-input" placeholder="Search tasks, messages..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+         <input type="text" ref={searchInputRef} className="search-input" placeholder="Search tasks, messages..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
          <span className="search-hint">⌘ K</span>
       </div>
       

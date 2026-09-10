@@ -213,7 +213,11 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
       
       const normalizeSender = (s) => {
           if (!s) return null;
-          return s.trim().replace(/\s*\(\d+\s*messages?\)/gi, '').trim().toLowerCase();
+          let cleaned = s.trim().replace(/\s*\(\d+\s*messages?\)/gi, '').trim();
+          if (cleaned.includes(':')) {
+              cleaned = cleaned.split(':')[0].trim();
+          }
+          return cleaned.toLowerCase();
       };
       
       const senderKey = normalizeSender(sender);
@@ -393,6 +397,86 @@ Task: ${aiResult.isTask}`);
       console.error(err);
       res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
+});
+
+// TEMPORARY BACKFILL ONLY - To be removed after Phase 1 verification
+app.post('/api/admin/backfill-sender-key', authenticateToken, async (req, res) => {
+    try {
+        const tasks = await prisma.task.findMany({ 
+            select: { id: true, sender: true, senderKey: true } 
+        });
+        
+        // Exact normalized logic approved
+        const normalizeSender = (s) => {
+            if (!s) return null;
+            let cleaned = s.trim().replace(/\s*\(\d+\s*messages?\)/gi, '').trim();
+            if (cleaned.includes(':')) {
+                cleaned = cleaned.split(':')[0].trim();
+            }
+            return cleaned.toLowerCase();
+        };
+
+        const beforeGroups = new Set();
+        const afterGroups = new Set();
+        let updatedCount = 0;
+        let nullOrUnexpectedCount = 0;
+        
+        const trackingGroupsTarget = ["cse_2024-2028", "act 26-27", "3rd year kurinji and marutham"];
+        const collapsedMap = {};
+
+        // Process all tasks sequentially
+        for (const t of tasks) {
+            // BEFORE metrics: Use the CURRENT senderKey values perfectly mapping actual DB state
+            if (t.senderKey !== null && t.senderKey !== undefined) {
+                beforeGroups.add(t.senderKey);
+            }
+
+            let newKey = normalizeSender(t.sender);
+            
+            if (!newKey) {
+                nullOrUnexpectedCount++;
+            } else {
+                // AFTER metrics: Calculate from normalized variations
+                afterGroups.add(newKey);
+                
+                // For affectedSenderGroups: Record raw sender variants tracking strictly to requested targets
+                if (trackingGroupsTarget.includes(newKey)) {
+                    if (!collapsedMap[newKey]) collapsedMap[newKey] = new Set();
+                    collapsedMap[newKey].add(t.sender);
+                }
+            }
+
+            // Update senderKey ONLY when new normalized value differs
+            if (newKey && t.senderKey !== newKey) {
+                await prisma.task.update({
+                    where: { id: t.id },
+                    data: { senderKey: newKey } // Do NOT change task.sender or other fields
+                });
+                updatedCount++;
+            }
+        }
+        
+        // Finalize maps cleanly for reporting
+        const affectedGroupsResult = {};
+        for (const k of Object.keys(collapsedMap)) {
+            affectedGroupsResult[k] = Array.from(collapsedMap[k]);
+        }
+
+        res.json({
+            success: true,
+            metrics: {
+                totalTasksProcessed: tasks.length,
+                distinctGroupsBefore: beforeGroups.size,
+                distinctGroupsAfter: afterGroups.size,
+                rowsUpdated: updatedCount,
+                nullOrUnexpectedSenderKeyCount: nullOrUnexpectedCount,
+                affectedSenderGroups: affectedGroupsResult
+            }
+        });
+    } catch (err) {
+        console.error("Backfill Error:", err);
+        res.status(500).json({ success: false, message: 'Internal Server Error during backfill' });
+    }
 });
 
 // GET /api/tasks

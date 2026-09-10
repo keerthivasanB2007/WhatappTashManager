@@ -60,6 +60,21 @@ export default function AppShell() {
           <TaskDetails task={selectedTask} />
         </div>
       </div>}
+      
+      <nav className="mobile-bottom-nav">
+         <button className={`mobile-nav-btn ${currentView === 'TASKS' ? 'active' : ''}`} onClick={() => setCurrentView('TASKS')}>
+             <span className="nav-icon">📅</span>
+             <span>Tasks</span>
+         </button>
+         <button className={`mobile-nav-btn ${currentView === 'CALENDAR' ? 'active' : ''}`} onClick={() => setCurrentView('CALENDAR')}>
+             <span className="nav-icon">🗓️</span>
+             <span>Calendar</span>
+         </button>
+         <button className="mobile-nav-btn" onClick={() => window.alert('Account Settings / Logout coming soon to mobile (managed via TopBar).')}>
+             <span className="nav-icon">👤</span>
+             <span>Account</span>
+         </button>
+      </nav>
     </div>
   );
 }
