@@ -175,7 +175,7 @@ export default function TaskList() {
 
   return (
    <main className="main-workspace task-list-workspace">
-      <header className="workspace-header" style={{ padding: '0 16px', background: 'transparent' }}>
+      <header className="workspace-header">
          <div className="greeting-panel">
             <div className="greeting-text">
               <div className="greeting-icon-bg">

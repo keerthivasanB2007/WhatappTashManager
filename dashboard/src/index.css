@@ -386,11 +386,10 @@ a { text-decoration: none; color: inherit; }
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--bg-color);
   max-width: 1000px;
   min-width: 0;
-  overflow-x: hidden;
 }
 .task-list-workspace {
   width: auto;
@@ -414,9 +413,10 @@ a { text-decoration: none; color: inherit; }
 .workspace-header {
   padding: 24px 32px 16px 32px;
   background: var(--bg-color);
-  position: sticky;
-  top: 0;
-  z-index: var(--z-calendar-pill);
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 10;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
 }
 .workspace-title-row {
   display: flex;
@@ -477,8 +477,16 @@ a { text-decoration: none; color: inherit; }
 /* Content Area */
 .content-area {
   padding: 0 32px 32px 32px;
-  flex-grow: 1;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
+.content-area::-webkit-scrollbar { width: 8px; }
+.content-area::-webkit-scrollbar-track { background: transparent; }
+.content-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 8px; }
+.content-area::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
 .task-section { margin-bottom: 24px; }
 .section-label {

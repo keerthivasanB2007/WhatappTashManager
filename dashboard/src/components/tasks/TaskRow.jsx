@@ -10,7 +10,10 @@ export default function TaskRow({ task, isSelected, onSelect }) {
   const isHighPriority = task.priority === 'HIGH';
   
   const handleStatusToggle = async (e) => {
-      e.stopPropagation();
+      if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+      }
       try {
          await updateStatus({ id: task.id, status: isCompleted ? 'PENDING' : 'COMPLETED' });
       } catch (err) {}
@@ -45,8 +48,12 @@ export default function TaskRow({ task, isSelected, onSelect }) {
       onClick={() => onSelect?.(task.id)} 
       role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect?.(task.id); }}
     >
-        <div className="task-row-checkbox-col">
-           <button className={`task-checkbox-square ${isCompleted ? 'checked' : ''}`} onClick={handleStatusToggle}>
+        <div className="task-row-checkbox-col" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
+           <button 
+              type="button" 
+              className={`task-checkbox-square ${isCompleted ? 'checked' : ''}`} 
+              onClick={handleStatusToggle}
+           >
               {isCompleted && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
            </button>
         </div>
