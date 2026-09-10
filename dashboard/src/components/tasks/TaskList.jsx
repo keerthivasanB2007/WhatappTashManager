@@ -183,38 +183,73 @@ export default function TaskList() {
 
   return (
    <main className="main-workspace task-list-workspace">
-      <header className="workspace-header">
-         <div className="workspace-title-row">
-            <div>
-                <h1 className="workspace-title">{getTitle()}</h1>
-                <p className="workspace-subtitle">Manage your WhatsApp-captured tasks</p>
+      <header className="workspace-header" style={{ padding: '0 16px', background: 'transparent' }}>
+         <div className="greeting-panel">
+            <div className="greeting-text">
+              <div className="greeting-icon-bg">
+                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.487-1.761-1.66-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.052 0C5.495 0 .16 5.333.158 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.332 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+              </div>
+              <div>
+                <h1 className="greeting-title">Good Evening, Keerthivasan! <span role="img" aria-label="wave">👋</span></h1>
+                <p className="greeting-subtitle">Here are your WhatsApp-captured tasks</p>
+              </div>
+            </div>
+            
+            <div className="greeting-metrics">
+               <div className="g-metric g-blue">
+                  <div className="g-icon">📄</div>
+                  <div className="g-data"><span>Total</span><strong>{globalTasks.length}</strong></div>
+               </div>
+               <div className="g-metric g-yellow">
+                  <div className="g-icon">🕒</div>
+                  <div className="g-data"><span>Pending</span><strong>{globalTasks.filter(t=>t.status!=='COMPLETED').length}</strong></div>
+               </div>
+               <div className="g-metric g-green">
+                  <div className="g-icon">✅</div>
+                  <div className="g-data"><span>Completed</span><strong>{globalTasks.filter(t=>t.status==='COMPLETED').length}</strong></div>
+               </div>
+               <div className="g-metric g-orange">
+                  <div className="g-icon">🔥</div>
+                  <div className="g-data"><span>High Priority</span><strong>{globalTasks.filter(t=>t.status!=='COMPLETED'&&t.priority==='HIGH').length}</strong></div>
+               </div>
             </div>
          </div>
          
          <div className="toolbar">
             <div className="filter-btn-group">
-               {['ALL', 'PENDING', 'COMPLETED', 'HIGH_PRIORITY'].map(f => (
-                  <button key={f} className={`filter-btn ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
-                     {f === 'HIGH_PRIORITY' ? 'High Priority' : f === 'ALL' ? 'All Tasks' : f.charAt(0) + f.slice(1).toLowerCase()}
-                  </button>
-               ))}
+               <button className={`filter-btn ${filter === 'ALL' ? 'active filter-blue' : ''}`} onClick={() => setFilter('ALL')}>
+                  <span className="btn-icon">🗂️</span> All Tasks
+               </button>
+               <button className={`filter-btn ${filter === 'PENDING' ? 'active filter-blue' : ''}`} onClick={() => setFilter('PENDING')}>
+                  <span className="btn-icon">🕒</span> Pending
+               </button>
+               <button className={`filter-btn ${filter === 'COMPLETED' ? 'active filter-blue' : ''}`} onClick={() => setFilter('COMPLETED')}>
+                  <span className="btn-icon">✅</span> Completed
+               </button>
+               <button className={`filter-btn ${filter === 'HIGH_PRIORITY' ? 'active filter-orange' : ''}`} onClick={() => setFilter('HIGH_PRIORITY')}>
+                  <span className="btn-icon">🔥</span> High Priority
+               </button>
             </div>
 
-            {selectedForBulk.size > 0 ? (
-                <div className="bulk-action-bar">
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{selectedForBulk.size} selected</span>
-                    <button className="btn-link" onClick={handleBulkComplete}>Mark Complete</button>
-                    <button className="btn-link" style={{ color: 'var(--status-overdue)' }} onClick={handleBulkDelete}>Delete</button>
-                    <button className="btn-link" style={{ color: 'var(--text-muted)' }} onClick={() => setSelectedForBulk(new Set())}>Clear</button>
-                </div>
-            ) : (
-                <select className="sort-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-                   <option value="deadline">Deadline</option>
-                   <option value="priority">Priority</option>
-                   <option value="recent">Recent</option>
-                   <option value="oldest">Oldest</option>
-                </select>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                {selectedForBulk.size > 0 ? (
+                    <div className="bulk-action-bar">
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{selectedForBulk.size} selected</span>
+                        <button className="btn-link" onClick={handleBulkComplete}>Mark Complete</button>
+                        <button className="btn-link" style={{ color: 'var(--status-overdue)' }} onClick={handleBulkDelete}>Delete</button>
+                        <button className="btn-link" style={{ color: 'var(--text-muted)' }} onClick={() => setSelectedForBulk(new Set())}>Clear</button>
+                    </div>
+                ) : (
+                    <div className="sort-wrapper">
+                        <select className="sort-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                           <option value="deadline">Deadline</option>
+                           <option value="priority">Priority</option>
+                           <option value="recent">Recent</option>
+                           <option value="oldest">Oldest</option>
+                        </select>
+                    </div>
+                )}
+            </div>
          </div>
       </header>
 
