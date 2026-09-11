@@ -34,23 +34,31 @@ export const extractUrl = (text) => {
 export const getUniqueTasks = (tasks) => {
     const getNormalizedString = (str) => (str || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
+    // Prioritize COMPLETED tasks during deduplication discovery
+    // This allows the completed state to claim ownership of the deduplication key,
+    // safely shadowing identical PENDING duplicates.
+    const sortedTasks = [...tasks].sort((a, b) => {
+      if (a.status === 'COMPLETED' && b.status !== 'COMPLETED') return -1;
+      if (b.status === 'COMPLETED' && a.status !== 'COMPLETED') return 1;
+      return 0; // retain original order for other cases
+    });
+
     const uniqueTasks = [];
     const seenOriginalMessages = new Set();
     const seenTitlesWithDeadlines = new Set();
-    const seenIds = new Set();
+    const discoveredIds = new Set();
 
-    for (const t of tasks) {
-      if (seenIds.has(t.id)) continue;
+    for (const t of sortedTasks) {
+      if (discoveredIds.has(t.id)) continue;
       
       const senderKey = t.senderKey || (t.sender || '').trim().replace(/\s*\(\d+\s*messages?\)/gi, '').toLowerCase().trim();
       const deadlineTime = t.deadline ? new Date(t.deadline).getTime() : 'no_deadline';
-      const statusScope = t.status === 'COMPLETED' ? 'completed' : 'pending';
       
       const normMsg = t.originalMessage ? getNormalizedString(t.originalMessage) : '';
-      const msgKey = normMsg ? `msg_${senderKey}_${normMsg}_${deadlineTime}_${statusScope}` : null;
+      const msgKey = normMsg ? `msg_${senderKey}_${normMsg}_${deadlineTime}` : null;
       
       const normTitle = t.task ? getNormalizedString(t.task) : '';
-      const titleKey = normTitle ? `title_${senderKey}_${normTitle}_${deadlineTime}_${statusScope}` : null;
+      const titleKey = normTitle ? `title_${senderKey}_${normTitle}_${deadlineTime}` : null;
       
       let isDuplicate = false;
       
@@ -61,11 +69,13 @@ export const getUniqueTasks = (tasks) => {
       }
       
       if (!isDuplicate) {
-        seenIds.add(t.id);
+        discoveredIds.add(t.id);
         if (msgKey) seenOriginalMessages.add(msgKey);
         if (titleKey) seenTitlesWithDeadlines.add(titleKey);
         uniqueTasks.push(t);
       }
     }
-    return uniqueTasks;
+    
+    // Return original tasks array filtered by chosen unique IDs strictly to preserve original sequence ordering.
+    return tasks.filter(t => discoveredIds.has(t.id));
 };
