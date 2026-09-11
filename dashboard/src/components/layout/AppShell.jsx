@@ -9,72 +9,16 @@ import { useAppState } from '../../hooks/useAppState';
 import { useTasks } from '../../hooks/useTasks';
 
 export default function AppShell() {
-  const { currentView, selectedTaskId, setSelectedTaskId } = useAppState();
+  const { currentView, selectedTaskId, setSelectedTaskId, sidebarCollapsed, railHidden } = useAppState();
   const { globalTasks } = useTasks();
-  const selectedTask = globalTasks.find(task => task.id === selectedTaskId) || null;
-  const [sidebarWidth, setSidebarWidth] = useState(() => Number(localStorage.getItem('dashboard-sidebar-width')) || 240);
-  const [railWidth, setRailWidth] = useState(() => Number(localStorage.getItem('dashboard-rail-width')) || 280);
-
-  useEffect(() => {
-    const closeOnEscape = event => event.key === 'Escape' && setSelectedTaskId(null);
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [setSelectedTaskId]);
-
-  const resizePanel = (panel, event) => {
-    event.preventDefault();
-    const startX = event.clientX;
-    const initial = panel === 'sidebar' ? sidebarWidth : railWidth;
-    const update = moveEvent => {
-      const next = panel === 'sidebar'
-        ? Math.min(340, Math.max(180, initial + moveEvent.clientX - startX))
-        : Math.min(380, Math.max(220, initial - moveEvent.clientX + startX));
-      if (panel === 'sidebar') {
-        setSidebarWidth(next);
-        localStorage.setItem('dashboard-sidebar-width', String(next));
-      } else {
-        setRailWidth(next);
-        localStorage.setItem('dashboard-rail-width', String(next));
-      }
-    };
-    const stop = () => {
-      window.removeEventListener('pointermove', update);
-      window.removeEventListener('pointerup', stop);
-    };
-    window.addEventListener('pointermove', update);
-    window.addEventListener('pointerup', stop);
+  const [sidebarWidth, setSidebarWidth] = useState(() => Number(localStorage.getItem('dashboard-sidebar-width')) || 224);
+  const [railWidth, setRailWidth] = useState(() => Number(localStorage.getItem('dashboard-rail-width')) || 272);
+  const selectedTask = globalTasks.find(task => task.id === selectedTaskId);
+  useEffect(() => { const close = e => e.key === 'Escape' && setSelectedTaskId(null); window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close); }, [setSelectedTaskId]);
+  const resize = (panel, event) => {
+    event.preventDefault(); const start = event.clientX; const initial = panel === 'sidebar' ? sidebarWidth : railWidth;
+    const move = e => { const raw = panel === 'sidebar' ? initial + e.clientX - start : initial - e.clientX + start; const next = Math.round(Math.min(panel === 'sidebar' ? 280 : 360, Math.max(panel === 'sidebar' ? 180 : 240, raw)) / 8) * 8; if (panel === 'sidebar') { setSidebarWidth(next); localStorage.setItem('dashboard-sidebar-width', next); } else { setRailWidth(next); localStorage.setItem('dashboard-rail-width', next); } };
+    const stop = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', stop); }; window.addEventListener('pointermove', move); window.addEventListener('pointerup', stop);
   };
-
-  return (
-    <div className="app-layout">
-      <TopBar />
-      <div className="app-body" style={{ '--sidebar-width': `${sidebarWidth}px`, '--rail-width': `${railWidth}px` }}>
-        <Sidebar />
-        <div className="panel-resize-handle" onPointerDown={event => resizePanel('sidebar', event)} role="separator" aria-label="Resize sidebar" />
-        {currentView === 'TASKS' ? <TaskList /> : <CalendarRoot />}
-        <div className="panel-resize-handle panel-resize-handle-rail" onPointerDown={event => resizePanel('rail', event)} role="separator" aria-label="Resize quick metrics" />
-        <MetricsPanel />
-      </div>
-      {selectedTask && <div className="task-details-backdrop" onMouseDown={() => setSelectedTaskId(null)}>
-        <div className="task-details-dialog" onMouseDown={event => event.stopPropagation()}>
-          <TaskDetails task={selectedTask} />
-        </div>
-      </div>}
-      
-      <nav className="mobile-bottom-nav">
-         <button className={`mobile-nav-btn ${currentView === 'TASKS' ? 'active' : ''}`} onClick={() => setCurrentView('TASKS')}>
-             <span className="nav-icon">📅</span>
-             <span>Tasks</span>
-         </button>
-         <button className={`mobile-nav-btn ${currentView === 'CALENDAR' ? 'active' : ''}`} onClick={() => setCurrentView('CALENDAR')}>
-             <span className="nav-icon">🗓️</span>
-             <span>Calendar</span>
-         </button>
-         <button className="mobile-nav-btn" onClick={() => window.alert('Account Settings / Logout coming soon to mobile (managed via TopBar).')}>
-             <span className="nav-icon">👤</span>
-             <span>Account</span>
-         </button>
-      </nav>
-    </div>
-  );
+  return <div className="app-layout"><TopBar /><div className={`app-body ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${railHidden ? 'rail-hidden' : ''}`} style={{ '--sidebar-width': `${sidebarWidth}px`, '--rail-width': `${railWidth}px` }}><Sidebar />{!sidebarCollapsed && <div className="panel-resize-handle" onPointerDown={e => resize('sidebar', e)} />}{currentView === 'CALENDAR' ? <CalendarRoot /> : <TaskList />}{!railHidden && <div className="panel-resize-handle" onPointerDown={e => resize('rail', e)} />}{!railHidden && <MetricsPanel />}</div>{selectedTask && <div className="task-details-backdrop" onMouseDown={() => setSelectedTaskId(null)}><div className="task-details-dialog" onMouseDown={e => e.stopPropagation()}><TaskDetails task={selectedTask} /></div></div>}</div>;
 }
