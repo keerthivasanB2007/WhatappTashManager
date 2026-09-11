@@ -21,12 +21,21 @@ export function useTasks() {
     onError: (_error, _variables, context) => {
       if (context?.previousTasks) queryClient.setQueryData(['tasks'], context.previousTasks);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    // Skipping immediate invalidation to prevent "regenerate freshly" visual flashes until manual reload
+    // onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => tasksApi.deleteTask(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+      const previousTasks = queryClient.getQueryData(['tasks']);
+      queryClient.setQueryData(['tasks'], tasks => (tasks || []).filter(task => task.id !== id));
+      return { previousTasks };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousTasks) queryClient.setQueryData(['tasks'], context.previousTasks);
+    }
   });
 
   return {
