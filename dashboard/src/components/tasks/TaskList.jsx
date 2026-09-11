@@ -22,26 +22,28 @@ export default function TaskList() {
     });
   };
 
-  const handleBulkComplete = async () => {
+  const handleBulkComplete = async (e) => {
+    if (e) e.preventDefault();
     if (isBulkSaving || selectedTasks.size === 0) return;
     setIsBulkSaving(true);
     try {
       await Promise.all(Array.from(selectedTasks).map(id => updateStatus({ id, status: filter === 'COMPLETED' ? 'PENDING' : 'COMPLETED' })));
     } catch (e) {
-      console.error(e);
+      console.error('Bulk update error:', e);
     } finally {
       setIsBulkSaving(false);
       setSelectedTasks(new Set());
     }
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = async (e) => {
+    if (e) e.preventDefault();
     if (isBulkSaving || selectedTasks.size === 0) return;
     setIsBulkSaving(true);
     try {
       await Promise.all(Array.from(selectedTasks).map(id => deleteTask(id)));
     } catch (e) {
-      console.error(e);
+      console.error('Bulk delete error:', e);
     } finally {
       setIsBulkSaving(false);
       setSelectedTasks(new Set());

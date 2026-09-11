@@ -9,8 +9,11 @@ datasource db {
 
 model Task {
   id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
   source          String
   sender          String
+  senderKey       String
   originalMessage String
   task            String?
   category        String
@@ -20,6 +23,8 @@ model Task {
   createdAt       DateTime  @default(now())
   receivedAt      DateTime?
   reminderSent    Boolean   @default(false)
+
+  @@index([senderKey])
 }
 
 model User {
@@ -27,6 +32,7 @@ model User {
   email        String   @unique
   passwordHash String
   createdAt    DateTime @default(now())
+  tasks        Task[]
   sessions     Session[]
 }
 

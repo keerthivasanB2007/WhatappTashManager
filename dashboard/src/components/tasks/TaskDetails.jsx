@@ -47,7 +47,8 @@ export default function TaskDetails({ task }) {
   const messageCount = task.messageCount || task.messages?.length || relatedMessages.length || 1;
   const completionDate = task.completedAt || task.completedAtDate || task.completionDate;
 
-  const handleStatusToggle = async () => {
+  const handleStatusToggle = async (e) => {
+    if (e) e.preventDefault();
     if (saving) return;
     setSaving(true); setActionError('');
     try {
@@ -59,7 +60,8 @@ export default function TaskDetails({ task }) {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (e) => {
+    if (e) e.preventDefault();
     if (window.confirm('Are you sure you want to delete this task?')) {
       await deleteTask(task.id);
       setSelectedTaskId(null);

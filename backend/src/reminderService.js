@@ -1,7 +1,7 @@
 const taskStore = require('./taskStore');
 
-async function getEligibleReminders() {
-    const tasks = await taskStore.getTasks();
+async function getEligibleReminders(userId) {
+    const tasks = await taskStore.getTasks(userId);
     const now = Date.now();
     const reminders = [];
 

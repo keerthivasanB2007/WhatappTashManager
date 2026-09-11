@@ -19,6 +19,8 @@ export function useTasks() {
       return { previousTasks };
     },
     onError: (_error, _variables, context) => {
+      console.error("Mutation Error:", _error);
+      alert("Error updating task: " + (_error.response?.data?.message || _error.message || "Network issue"));
       if (context?.previousTasks) queryClient.setQueryData(['tasks'], context.previousTasks);
     },
     // Skipping immediate invalidation to prevent "regenerate freshly" visual flashes until manual reload

@@ -8,8 +8,8 @@ export default function TaskRow({ task, isSelected, isChecked, onToggleCheck, on
   const overdue = !completed && getTaskCategory(task) === 'OVERDUE';
   const sender = (task.sender || 'Unknown sender').replace(/\s*\(\d+\s*messages?\)/i, '').trim();
   const count = globalTasks.filter(item => item.senderKey && item.senderKey === task.senderKey).length;
-  
   const handleCheck = event => {
+    event.preventDefault();
     event.stopPropagation();
     if (onToggleCheck) onToggleCheck();
   };

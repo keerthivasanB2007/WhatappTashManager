@@ -1,9 +1,10 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-async function getTasks() {
+async function getTasks(userId) {
     try {
         return await prisma.task.findMany({
+            where: { userId },
             orderBy: { createdAt: 'desc' }
         });
     } catch(err) {
@@ -12,19 +13,21 @@ async function getTasks() {
     }
 }
 
-async function getTaskById(id) {
+async function getTaskById(id, userId) {
     try {
-        return await prisma.task.findUnique({ where: { id } });
+        return await prisma.task.findFirst({ where: { id, userId } });
     } catch(err) {
         return null;
     }
 }
 
-async function createTask(taskData) {
+async function createTask(userId, taskData) {
     const newTask = await prisma.task.create({
         data: {
+            userId: userId,
             source: taskData.source,
             sender: taskData.sender,
+            senderKey: taskData.senderKey || null,
             originalMessage: taskData.originalMessage,
             task: taskData.task || null,
             category: taskData.category || 'important_information',
@@ -39,27 +42,29 @@ async function createTask(taskData) {
     return newTask;
 }
 
-async function updateTask(id, updates) {
+async function updateTask(id, userId, updates) {
     delete updates.id;
     delete updates.originalMessage;
     delete updates.sender;
     delete updates.source;
+    delete updates.userId;
 
     try {
-        const updated = await prisma.task.update({
-            where: { id },
+        const updated = await prisma.task.updateMany({
+            where: { id, userId },
             data: updates
         });
-        return updated;
+        if (updated.count === 0) return null;
+        return await prisma.task.findFirst({ where: { id, userId } });
     } catch(err) {
         return null;
     }
 }
 
-async function deleteTask(id) {
+async function deleteTask(id, userId) {
     try {
-        await prisma.task.delete({ where: { id } });
-        return true;
+        const result = await prisma.task.deleteMany({ where: { id, userId } });
+        return result.count > 0;
     } catch(err) {
         return false;
     }

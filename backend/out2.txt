@@ -1,0 +1,6 @@
+﻿{
+    "success":  true,
+    "message":  "Message processed",
+    "classification":  null,
+    "task":  null
+}
