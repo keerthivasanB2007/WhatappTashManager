@@ -76,8 +76,8 @@ export default function TaskList() {
     <div className="bulk-action-bar" style={{ display: 'flex', gap: '12px', padding: '12px 16px', background: 'var(--surface-color, #fff)', borderBottom: '1px solid var(--border-color, #eaeaea)', position: 'sticky', top: 0, zIndex: 10, alignItems: 'center', justifyContent: 'space-between', borderRadius: '8px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
       <span style={{ fontWeight: 500 }}>{selectedTasks.size} task{selectedTasks.size > 1 ? 's' : ''} selected</span>
       <div style={{ display: 'flex', gap: '8px' }}>
-        <button className="primary-button" style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', background: 'var(--primary-color, #0f172a)', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }} disabled={isBulkSaving} onClick={handleBulkComplete}>{isBulkSaving ? 'Saving...' : filter === 'COMPLETED' ? 'Mark as pending' : 'Mark as completed'}</button>
-        <button className="secondary-button" style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid #ff4d4f', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }} disabled={isBulkSaving} onClick={handleBulkDelete}>Delete</button>
+        <button type="button" className="primary-button" style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', background: 'var(--primary-color, #0f172a)', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }} disabled={isBulkSaving} onClick={handleBulkComplete}>{isBulkSaving ? 'Saving...' : filter === 'COMPLETED' ? 'Mark as pending' : 'Mark as completed'}</button>
+        <button type="button" className="secondary-button" style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid #ff4d4f', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }} disabled={isBulkSaving} onClick={handleBulkDelete}>Delete</button>
       </div>
     </div>
   )}

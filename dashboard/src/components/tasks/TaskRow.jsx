@@ -15,7 +15,7 @@ export default function TaskRow({ task, isSelected, isChecked, onToggleCheck, on
   };
 
   return <article className={`task-row ${overdue ? 'is-overdue' : ''} ${task.priority === 'HIGH' ? 'is-high' : ''} ${completed ? 'is-completed' : ''} ${isSelected ? 'is-selected' : ''}`} onClick={() => onSelect(task.id)}>
-    <button className={`check-button ${isChecked ? 'is-checked' : ''}`} aria-label={isChecked ? 'Deselect task' : 'Select task'} onClick={handleCheck} style={isChecked ? { backgroundColor: 'var(--primary-color, #0f172a)', borderColor: 'var(--primary-color, #0f172a)', color: '#fff' } : {}}>
+    <button type="button" className={`check-button ${isChecked ? 'is-checked' : ''}`} aria-label={isChecked ? 'Deselect task' : 'Select task'} onClick={handleCheck} style={isChecked ? { backgroundColor: 'var(--primary-color, #0f172a)', borderColor: 'var(--primary-color, #0f172a)', color: '#fff' } : {}}>
       {isChecked ? '✓' : completed ? '✓' : ''}
     </button>
     <div className={`priority-dot ${task.priority?.toLowerCase() || 'medium'}`} />

@@ -44,12 +44,13 @@ export const getUniqueTasks = (tasks) => {
       
       const senderKey = t.senderKey || (t.sender || '').trim().replace(/\s*\(\d+\s*messages?\)/gi, '').toLowerCase().trim();
       const deadlineTime = t.deadline ? new Date(t.deadline).getTime() : 'no_deadline';
+      const statusScope = t.status === 'COMPLETED' ? 'completed' : 'pending';
       
       const normMsg = t.originalMessage ? getNormalizedString(t.originalMessage) : '';
-      const msgKey = normMsg ? `msg_${senderKey}_${normMsg}_${deadlineTime}` : null;
+      const msgKey = normMsg ? `msg_${senderKey}_${normMsg}_${deadlineTime}_${statusScope}` : null;
       
       const normTitle = t.task ? getNormalizedString(t.task) : '';
-      const titleKey = normTitle ? `title_${senderKey}_${normTitle}_${deadlineTime}` : null;
+      const titleKey = normTitle ? `title_${senderKey}_${normTitle}_${deadlineTime}_${statusScope}` : null;
       
       let isDuplicate = false;
       
