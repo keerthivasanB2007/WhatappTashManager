@@ -12,7 +12,16 @@ export function useTasks() {
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }) => tasksApi.updateTaskStatus(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+      const previousTasks = queryClient.getQueryData(['tasks']);
+      queryClient.setQueryData(['tasks'], tasks => (tasks || []).map(task => task.id === id ? { ...task, status } : task));
+      return { previousTasks };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousTasks) queryClient.setQueryData(['tasks'], context.previousTasks);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
   });
 
   const deleteMutation = useMutation({

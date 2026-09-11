@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTasks } from '../../hooks/useTasks';
 import { formatDate, getTaskCategory } from '../../utils/taskUtils';
 import { useAppState } from '../../hooks/useAppState';
@@ -24,6 +24,8 @@ function DetailValue({ children, muted = false }) {
 export default function TaskDetails({ task }) {
   const { updateStatus, deleteTask, globalTasks } = useTasks();
   const { setSelectedTaskId } = useAppState();
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   if (!task) {
     return (
@@ -46,7 +48,15 @@ export default function TaskDetails({ task }) {
   const completionDate = task.completedAt || task.completedAtDate || task.completionDate;
 
   const handleStatusToggle = async () => {
-    await updateStatus({ id: task.id, status: isCompleted ? 'PENDING' : 'COMPLETED' });
+    if (saving) return;
+    setSaving(true); setActionError('');
+    try {
+      await updateStatus({ id: task.id, status: isCompleted ? 'PENDING' : 'COMPLETED' });
+    } catch (error) {
+      setActionError(error.response?.data?.message || 'Could not update this task. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -98,14 +108,15 @@ export default function TaskDetails({ task }) {
       </div>
 
       <div className="task-details-actions">
-        <button className="task-detail-action task-detail-action-primary" style={{ display: 'flex', alignItems: 'center', gap: '10px' }} onClick={handleStatusToggle}>
+        <button className="task-detail-action task-detail-action-primary" disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '10px' }} onClick={handleStatusToggle}>
           <div className={`task-checkbox-square ${isCompleted ? 'checked' : ''}`} aria-hidden="true">
              {isCompleted && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
           </div>
-          {isCompleted ? 'Completed' : 'Mark Complete'}
+          {saving ? 'Saving…' : isCompleted ? 'Mark pending' : 'Mark complete'}
         </button>
         <button className="task-detail-action task-detail-action-danger" onClick={handleDelete}>Delete</button>
       </div>
+      {actionError && <p className="task-action-error" role="alert">{actionError}</p>}
     </section>
   );
 }
