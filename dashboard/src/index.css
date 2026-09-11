@@ -411,21 +411,20 @@ a { text-decoration: none; color: inherit; }
 }
 .task-list-workspace .sort-select { align-self: center; }
 .workspace-header {
-  padding: 24px 32px 16px 32px;
+  padding: 16px 32px 12px 32px;
   background: var(--bg-color);
   flex: 0 0 auto;
   position: relative;
-  z-index: 10;
-  border-bottom: 1px solid rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border);
 }
 .workspace-title-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .workspace-title {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -441,6 +440,7 @@ a { text-decoration: none; color: inherit; }
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  margin-top: 16px;
 }
 .filter-btn-group {
   display: flex;
@@ -477,7 +477,7 @@ a { text-decoration: none; color: inherit; }
 /* Content Area */
 .content-area {
   padding: 0 32px 32px 32px;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
@@ -487,6 +487,34 @@ a { text-decoration: none; color: inherit; }
 .content-area::-webkit-scrollbar-track { background: transparent; }
 .content-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 8px; }
 .content-area::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* Greeting Base Styles for Desktop (so they aren't vertically stacked) */
+.greeting-panel {
+   background: var(--surface);
+   border-radius: var(--radius-lg); padding: 16px 20px;
+   display: flex; justify-content: space-between; align-items: center;
+   margin-bottom: 16px; border: 1px solid var(--border);
+}
+.greeting-text { display: flex; align-items: center; gap: 16px; flex-shrink: 0;}
+.greeting-icon-bg { background: rgba(56, 189, 248, 0.1); padding: 10px; border-radius: 50%; color: #38BDF8; display: flex; align-items: center; justify-content: center;}
+.greeting-title { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+.greeting-subtitle { font-size: 0.8rem; color: var(--text-secondary); }
+
+.greeting-metrics { display: flex; gap: 12px; flex: 1; justify-content: flex-end;}
+.g-metric { 
+   background: var(--bg-color);
+   border: 1px solid var(--border); border-radius: var(--radius-md);
+   padding: 8px 12px; display: flex; align-items: center; gap: 10px; min-width: max-content;
+   flex-shrink: 0;
+}
+.g-metric.g-blue { border-left: 2px solid #38BDF8; }
+.g-metric.g-yellow { border-left: 2px solid #FCD34D; }
+.g-metric.g-green { border-left: 2px solid #34D399; }
+.g-metric.g-orange { border-left: 2px solid #FB923C; }
+.g-icon { background: var(--surface); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 1rem; }
+.g-data { display: flex; flex-direction: column; line-height: 1.1; }
+.g-data span { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;}
+.g-data strong { font-size: 1.1rem; margin-top: 1px; color: var(--text-primary); }
 
 .task-section { margin-bottom: 24px; }
 .section-label {
