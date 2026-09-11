@@ -9,7 +9,7 @@ async function getTasks(userId) {
         });
     } catch(err) {
         console.error("Database connection failure:", err.message);
-        return [];
+        throw err;
     }
 }
 
