@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import './buttons.css'
 import App from './App.jsx'
 import './index.css'
+import './redesign-polish.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
