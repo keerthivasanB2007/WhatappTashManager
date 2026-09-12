@@ -17,6 +17,9 @@
 @rem
 
 @if "%DEBUG%"=="" @echo off
+
+@rem Force correct JDK to fix jlink error from Antigravity/RedHat extension
+set JAVA_HOME=C:\Program Files\Java\jdk-26
 @rem ##########################################################################
 @rem
 @rem  Gradle startup script for Windows

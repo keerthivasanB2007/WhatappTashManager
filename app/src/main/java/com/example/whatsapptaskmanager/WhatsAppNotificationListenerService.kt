@@ -96,7 +96,16 @@ class WhatsAppNotificationListenerService : NotificationListenerService() {
                     val status = if (classification?.isTask == true) MonitorStatus.SUCCESS else MonitorStatus.NO_TASK
                     
                     body?.task?.let { taskData ->
-                        AlarmScheduler.scheduleAlarm(applicationContext, taskData)
+                        // Schedule reminders
+                        TaskScheduler.scheduleTaskReminders(applicationContext, taskData)
+                        
+                        // Immediate notification for important/urgent
+                        val priority = taskData.priority
+                        if (priority?.equals("HIGH", ignoreCase = true) == true || 
+                            priority?.equals("URGENT", ignoreCase = true) == true ||
+                            classification?.isImportant == true) {
+                            Chat2TaskNotificationManager(applicationContext).showImportantTaskNotification(taskData)
+                        }
                     }
 
                     DebugStatusManager.updateStatus(

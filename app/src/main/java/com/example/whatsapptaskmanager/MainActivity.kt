@@ -41,6 +41,12 @@ class MainActivity : ComponentActivity() {
         
         DebugStatusManager.init(this)
 
+        // Initialize Notification Channels
+        Chat2TaskNotificationManager(this).createNotificationChannels()
+
+        // Schedule Daily Reminders
+        TaskScheduler.scheduleDailyReminders(this)
+
         val requestPermissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestPermission()
         ) {}

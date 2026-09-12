@@ -4,6 +4,7 @@ import retrofit2.Call
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PATCH
 import retrofit2.http.Path
 
 data class ReminderResponse(val success: Boolean, val reminders: List<ReminderTask>? = null)
@@ -20,6 +21,7 @@ data class Classification(
 
 data class TaskData(
     val id: String,
+    val sender: String? = null,
     val task: String?,
     val originalMessage: String,
     val deadline: String?,
@@ -34,6 +36,12 @@ data class MessageResponse(
     val task: TaskData?
 )
 
+data class TasksResponse(
+    val success: Boolean,
+    val count: Int,
+    val tasks: List<TaskData>
+)
+
 data class HealthResponse(val status: String)
 
 interface WhatsAppApi {
@@ -45,6 +53,12 @@ interface WhatsAppApi {
 
     @POST("api/reminders/{taskId}/sent")
     fun markReminderSent(@Path("taskId") taskId: String): Call<Any>
+
+    @GET("api/tasks")
+    fun getTasks(): Call<TasksResponse>
+
+    @PATCH("api/tasks/{id}")
+    fun updateTask(@Path("id") id: String, @Body body: Map<String, String>): Call<Any>
 
     @GET("health")
     fun checkHealth(): Call<HealthResponse>
