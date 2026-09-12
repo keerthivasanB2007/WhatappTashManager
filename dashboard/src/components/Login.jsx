@@ -29,7 +29,7 @@ const Login = ({ onLogin }) => {
     return (
         <div className="login-wrapper">
             <div className="login-hero">
-                <h1>WhatsAppTaskManager</h1>
+                <h1>Chat2Task</h1>
                 <p>Your tasks, organized simply.</p>
             </div>
             <div className="login-box">

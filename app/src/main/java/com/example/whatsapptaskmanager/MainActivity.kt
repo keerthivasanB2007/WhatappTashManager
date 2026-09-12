@@ -86,7 +86,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = "WhatsApp Task Manager",
+                text = "Chat2Task",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary

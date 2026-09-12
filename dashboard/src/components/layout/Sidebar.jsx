@@ -30,7 +30,7 @@ export default function Sidebar({ isCompact }) {
     <aside className={`sidebar ${compact ? 'sidebar-compact' : ''}`}>
       <div className="brand">
         <span className="brand-mark">✓</span>
-        {!compact && <span className="brand-text">Taskflow</span>}
+        {!compact && <span className="brand-text">Chat2Task</span>}
         <button className="collapse-btn" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label="Toggle sidebar">‹</button>
       </div>
       {!compact && <div className="nav-label">WORKSPACE</div>}
