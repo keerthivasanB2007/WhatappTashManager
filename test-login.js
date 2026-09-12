@@ -23,6 +23,7 @@ const req = https.request(options, res => {
   });
   res.on('end', () => {
     console.log(`Status: ${res.statusCode}`);
+    console.log(`Headers: ${JSON.stringify(res.headers, null, 2)}`);
     console.log(`Response: ${responseData}`);
   });
 });

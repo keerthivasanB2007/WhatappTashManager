@@ -10,6 +10,11 @@ import retrofit2.http.Path
 data class ReminderResponse(val success: Boolean, val reminders: List<ReminderTask>? = null)
 data class ReminderTask(val taskId: String, val title: String, val deadline: String?, val priority: String?, val message: String)
 
+data class TokensData(val accessToken: String, val refreshToken: String?)
+data class LoginResponse(val success: Boolean, val message: String, val tokens: TokensData?)
+data class RefreshResponse(val success: Boolean, val message: String, val tokens: TokensData?)
+
+
 data class Classification(
     val isImportant: Boolean,
     val isTask: Boolean,
@@ -45,6 +50,12 @@ data class TasksResponse(
 data class HealthResponse(val status: String)
 
 interface WhatsAppApi {
+    @POST("api/auth/login")
+    fun login(@Body body: Map<String, String>): Call<LoginResponse>
+
+    @POST("api/auth/refresh")
+    fun refresh(@retrofit2.http.Header("Cookie") cookie: String): Call<RefreshResponse> // fallback 
+
     @POST("api/messages")
     fun sendMessage(@Body request: MessageRequest): Call<MessageResponse>
 

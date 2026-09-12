@@ -37,7 +37,7 @@ class WhatsAppNotificationListenerService : NotificationListenerService() {
 
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-        val timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.getDefault()).format(Date())
+        val timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.getDefault()).format(Date())
 
         DebugStatusManager.updateStatus(
             status = MonitorStatus.EXTRACTED,

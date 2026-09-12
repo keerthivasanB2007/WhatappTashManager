@@ -1,15 +1,31 @@
 require('dotenv').config();
 const Groq = require('groq-sdk');
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-async function run() {
-    try {
-        const receivedAt = '2026-08-29T10:00:00.000Z';
-        const sender = 'Friend';
-        const message = 'Flight exam @10 tomorrow in ALHC 304';
+async function runTests() {
+    if (!process.env.GROQ_API_KEY) {
+        console.error('No GROQ_API_KEY available to run tests.');
+        return;
+    }
+    
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    
+    const referenceTime = "2026-09-12T19:16:00+05:30";
+    const sender = "Test Sender";
+    
+    const cases = [
+        "Complete network assignment by today",
+        "Submit assignment tomorrow",
+        "Submit assignment by today at 9 PM",
+        "Submit assignment on September 15 at 10 AM",
+        "Please check the assignment"
+    ];
+
+    for (let i = 0; i < cases.length; i++) {
+        const message = cases[i];
+        
         const prompt = `
 You are an AI assistant analyzing a WhatsApp message.
-Reference time: ${receivedAt}
+Reference time: ${referenceTime} (This includes the user's localized timezone offset).
 
 Message from ${sender}:
 "${message}"
@@ -17,10 +33,10 @@ Message from ${sender}:
 Extract the following information and return ONLY valid JSON matching this structure:
 {
   "isImportant": boolean, // true if it contains a task, scheduled event, deadline, meeting, exam, appointment, or important info
-  "isTask": boolean, // true if the message describes an actionable task OR any scheduled activity (e.g., exams, meetings, appointments, classes, events). Do not require imperative verbs (like "do", "submit"); declarative statements like "Flight exam tomorrow @10 in ALHC 304" MUST be classified as isTask: true. Casual info like "Tomorrow is a holiday" or "Marks were 10/20" is isTask: false.
+  "isTask": boolean, // true if it describes an actionable task OR scheduled activity.
   "category": "deadline" | "task" | "event" | "reminder" | "important_information" | "normal",
-  "task": string | null, // the task or event title (e.g., "Flight exam in ALHC 304", "Team meeting"). Include the location in the title if present.
-  "deadline": string | null, // ISO8601 string resolved logically against the reference time above. Evaluate relative offsets like "tomorrow at 10" strictly. Null if none present.
+  "task": string | null, // the task or event title.
+  "deadline": string | null, // ISO8601 string logically resolved against Reference time IN ITS EXACT TIMEZONE OFFSET. Rules: 'today' = local calendar date of reference. 'by today' = end of that local day (23:59:59). 'tomorrow' = next local calendar day. 'tonight' = current local evening. DO NOT use UTC math when computing relative shifts if it jumps standard calendar date boundaries. Null if none present.
   "priority": "high" | "medium" | "low", // high if urgent/deadline/exam, low if normal
   "reason": string // brief explanation why you classified it this way
 }
@@ -29,16 +45,28 @@ Do not invent tasks, times, or deadlines if they are not inferable.
 Be lenient with casual chats (isImportant: false). 
 Respond with JSON only.`;
 
-        console.log('Sending...');
-        const completion = await groq.chat.completions.create({
-            messages: [{ role: 'user', content: prompt }],
-            model: 'llama-3.1-8b-instant',
-            response_format: { type: 'json_object' }
-        });
-        
-        console.log('RAW JSON:', completion.choices[0]?.message?.content);
-    } catch(err) {
-        console.error('Error:', err);
+        try {
+            console.log(`\nTEST ${i + 1}: ${message}`);
+            // Use same model from server.js
+            const completion = await groq.chat.completions.create({
+                messages: [{ role: "user", content: prompt }],
+
+                // Replace openai/gpt-oss-20b with standard llama model since original was a proxy or wrapper mapping, using llama-3.1-70b-versatile
+                model: "llama-3.1-8b-instant" 
+            });
+            let responseText = completion.choices[0]?.message?.content || "{}";
+            if (responseText.includes("\`\`\`json")) {
+                responseText = responseText.split("\`\`\`json")[1].split("\`\`\`")[0].trim();
+            } else if (responseText.includes("\`\`\`")) {
+                responseText = responseText.split("\`\`\`")[1].trim();
+            }
+            
+            const parsed = JSON.parse(responseText);
+            console.log(`Deadline: ${parsed.deadline}`);
+        } catch (e) {
+            console.error(`Error on test ${i+1}:`, e.message);
+        }
     }
 }
-run();
+
+runTests();

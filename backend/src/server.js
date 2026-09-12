@@ -142,7 +142,12 @@ app.post('/api/auth/login', async (req, res) => {
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
 
-        res.json({ success: true, message: 'Logged in successfully' });
+        res.json({ 
+            success: true, 
+            message: 'Logged in successfully',
+            tokens: { accessToken, refreshToken },
+            user: { id: user.id, email: user.email }
+        });
     } catch(err) {
         console.error('LOGIN ERROR:', {
             name: err?.name,
@@ -178,7 +183,11 @@ app.post('/api/auth/refresh', async (req, res) => {
             maxAge: 15 * 60 * 1000
         });
         
-        res.json({ success: true, message: 'Token refreshed' });
+        res.json({ 
+            success: true, 
+            message: 'Token refreshed',
+            tokens: { accessToken }
+        });
     } catch(err) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -261,7 +270,7 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
               const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
               const prompt = `
 You are an AI assistant analyzing a WhatsApp message.
-Reference time: ${receivedAt}
+Reference time: ${receivedAt} (This includes the user's localized timezone offset).
 
 Message from ${sender}:
 "${message}"
@@ -269,10 +278,10 @@ Message from ${sender}:
 Extract the following information and return ONLY valid JSON matching this structure:
 {
   "isImportant": boolean, // true if it contains a task, scheduled event, deadline, meeting, exam, appointment, or important info
-  "isTask": boolean, // true if the message describes an actionable task OR any scheduled activity (e.g., exams, meetings, appointments, classes, events). Do not require imperative verbs (like "do", "submit"); declarative statements like "Flight exam tomorrow @10 in ALHC 304" MUST be classified as isTask: true. Casual info like "Tomorrow is a holiday" or "Marks were 10/20" is isTask: false.
+  "isTask": boolean, // true if it describes an actionable task OR scheduled activity.
   "category": "deadline" | "task" | "event" | "reminder" | "important_information" | "normal",
-  "task": string | null, // the task or event title (e.g., "Flight exam in ALHC 304", "Team meeting"). Include the location in the title if present.
-  "deadline": string | null, // ISO8601 string resolved logically against the reference time above. Evaluate relative offsets like "tomorrow at 10" strictly. Null if none present.
+  "task": string | null, // the task or event title.
+  "deadline": string | null, // ISO8601 string logically resolved against Reference time IN ITS EXACT TIMEZONE OFFSET. Rules: 'today' = local calendar date of reference. 'by today' = end of that local day (23:59:59). 'tomorrow' = next local calendar day. 'tonight' = current local evening. DO NOT use UTC math when computing relative shifts if it jumps standard calendar date boundaries. Null if none present.
   "priority": "high" | "medium" | "low", // high if urgent/deadline/exam, low if normal
   "reason": string // brief explanation why you classified it this way
 }

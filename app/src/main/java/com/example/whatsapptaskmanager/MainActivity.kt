@@ -27,7 +27,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+import com.example.whatsapptaskmanager.api.AuthManager
 import com.example.whatsapptaskmanager.api.HealthResponse
+import com.example.whatsapptaskmanager.api.LoginResponse
 import com.example.whatsapptaskmanager.api.RetrofitClient
 import com.example.whatsapptaskmanager.ui.theme.WhatsAppTaskManagerTheme
 import retrofit2.Call
@@ -57,10 +63,24 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        AuthManager.init(this)
+        
         setContent {
             WhatsAppTaskManagerTheme {
+                var isLoggedIn by remember { mutableStateOf(AuthManager.isLoggedIn()) }
+                
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MainScreen(modifier = Modifier.padding(innerPadding))
+                    if (isLoggedIn) {
+                        MainScreen(
+                            modifier = Modifier.padding(innerPadding), 
+                            onLogout = { isLoggedIn = false }
+                        )
+                    } else {
+                        LoginScreen(
+                            modifier = Modifier.padding(innerPadding), 
+                            onLoginSuccess = { isLoggedIn = true }
+                        )
+                    }
                 }
             }
         }
@@ -79,7 +99,7 @@ private val StatusWarning = Color(0xFFF59E0B)
 private val PrimaryDark = Color(0xFF111827)
 
 @Composable
-fun MainScreen(modifier: Modifier = Modifier) {
+fun MainScreen(modifier: Modifier = Modifier, onLogout: () -> Unit = {}) {
     Surface(
         modifier = modifier.fillMaxSize(),
         color = BackgroundGray
@@ -91,12 +111,21 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.Start
         ) {
-            Text(
-                text = "Chat2Task",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Chat2Task",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                TextButton(onClick = {
+                    AuthManager.clearTokens()
+                    onLogout()
+                }) {
+                    Text("Logout", fontSize = 12.sp, color = StatusError, fontWeight = FontWeight.Bold)
+                }
+            }
+
             
             Spacer(modifier = Modifier.height(4.dp))
             
@@ -535,3 +564,173 @@ fun isNotificationServiceEnabled(context: Context): Boolean {
     }
     return false
 }
+
+@Composable
+fun LoginScreen(modifier: Modifier = Modifier, onLoginSuccess: () -> Unit) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    val context = LocalContext.current
+
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = BackgroundGray
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Chat2Task",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Sign in to manage your tasks",
+                fontSize = 14.sp,
+                color = TextSecondary
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+
+            PrecisionCard {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email", fontSize = 12.sp, color = TextSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = PrimaryDark,
+                            unfocusedBorderColor = BorderGray,
+                            focusedLabelColor = TextSecondary,
+                            unfocusedLabelColor = TextSecondary,
+                            cursorColor = PrimaryDark,
+                            focusedPlaceholderColor = TextSecondary,
+                            unfocusedPlaceholderColor = TextSecondary
+                        )
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password", fontSize = 12.sp, color = TextSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        trailingIcon = {
+                            TextButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Text(if (passwordVisible) "Hide" else "Show", fontSize = 12.sp, color = PrimaryDark)
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = PrimaryDark,
+                            unfocusedBorderColor = BorderGray,
+                            focusedLabelColor = TextSecondary,
+                            unfocusedLabelColor = TextSecondary,
+                            cursorColor = PrimaryDark,
+                            focusedPlaceholderColor = TextSecondary,
+                            unfocusedPlaceholderColor = TextSecondary
+                        )
+                    )
+                    
+                    if (errorMessage != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = errorMessage!!,
+                            color = if (errorMessage!!.contains("successfully", ignoreCase = true)) StatusSuccess else StatusError,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            if (email.isBlank() || password.isBlank()) {
+                                errorMessage = "Email and password are required"
+                                return@Button
+                            }
+                            
+                            isLoading = true
+                            errorMessage = null
+                            
+                            val requestBody = mapOf("email" to email, "password" to password)
+                            RetrofitClient.instance.login(requestBody).enqueue(object : Callback<LoginResponse> {
+                                override fun onResponse(call: Call<LoginResponse>, response: Response<LoginResponse>) {
+                                    isLoading = false
+                                    if (response.isSuccessful) {
+                                        val body = response.body()
+                                        if (body?.success == true) {
+                                            // Extract tokens from body or headers
+                                            var accessToken = body.tokens?.accessToken
+                                            var refreshToken = body.tokens?.refreshToken
+
+                                            if (accessToken == null) {
+                                                // Fallback to extracting from cookies if not in body
+                                                val cookies = response.headers().values("Set-Cookie")
+                                                for (cookie in cookies) {
+                                                    if (cookie.contains("accessToken=")) {
+                                                        accessToken = cookie.substringAfter("accessToken=").substringBefore(";")
+                                                    }
+                                                    if (cookie.contains("refreshToken=")) {
+                                                        refreshToken = cookie.substringAfter("refreshToken=").substringBefore(";")
+                                                    }
+                                                }
+                                            }
+
+                                            if (!accessToken.isNullOrEmpty()) {
+                                                AuthManager.saveTokens(accessToken, refreshToken)
+                                                onLoginSuccess()
+                                            } else {
+                                                errorMessage = "Logged in but failed to retrieve session"
+                                            }
+                                        } else {
+                                            errorMessage = body?.message ?: "Login failed"
+                                        }
+                                    } else {
+                                        errorMessage = "Invalid credentials or server error (${response.code()})"
+                                    }
+                                }
+
+                                override fun onFailure(call: Call<LoginResponse>, t: Throwable) {
+                                    isLoading = false
+                                    errorMessage = "Network error: ${t.message}"
+                                }
+                            })
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoading,
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryDark, contentColor = SurfaceWhite),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = SurfaceWhite, strokeWidth = 2.dp)
+                        } else {
+                            Text("Sign In", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
