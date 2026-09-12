@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import TopBar from './TopBar';
+import MobileNav from './MobileNav';
 import Sidebar from './Sidebar';
 import MetricsPanel from './MetricsPanel';
 import TaskList from '../tasks/TaskList';
@@ -20,5 +21,5 @@ export default function AppShell() {
     const move = e => { const raw = panel === 'sidebar' ? initial + e.clientX - start : initial - e.clientX + start; const next = Math.round(Math.min(panel === 'sidebar' ? 280 : 360, Math.max(panel === 'sidebar' ? 180 : 240, raw)) / 8) * 8; if (panel === 'sidebar') { setSidebarWidth(next); localStorage.setItem('dashboard-sidebar-width', next); } else { setRailWidth(next); localStorage.setItem('dashboard-rail-width', next); } };
     const stop = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', stop); }; window.addEventListener('pointermove', move); window.addEventListener('pointerup', stop);
   };
-  return <div className="app-layout"><TopBar /><div className={`app-body ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${railHidden ? 'rail-hidden' : ''}`} style={{ '--sidebar-width': `${sidebarWidth}px`, '--rail-width': `${railWidth}px` }}><Sidebar />{!sidebarCollapsed && <div className="panel-resize-handle" onPointerDown={e => resize('sidebar', e)} />}{currentView === 'CALENDAR' ? <CalendarRoot /> : <TaskList />}{!railHidden && <div className="panel-resize-handle" onPointerDown={e => resize('rail', e)} />}{!railHidden && <MetricsPanel />}</div>{selectedTask && <div className="task-details-backdrop" onMouseDown={() => setSelectedTaskId(null)}><div className="task-details-dialog" onMouseDown={e => e.stopPropagation()}><TaskDetails task={selectedTask} /></div></div>}</div>;
+  return <div className="app-layout"><TopBar /><div className={`app-body ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${railHidden ? 'rail-hidden' : ''}`} style={{ '--sidebar-width': `${sidebarWidth}px`, '--rail-width': `${railWidth}px` }}><Sidebar />{!sidebarCollapsed && <div className="panel-resize-handle" onPointerDown={e => resize('sidebar', e)} />}{currentView === 'CALENDAR' ? <CalendarRoot /> : <TaskList />}{!railHidden && <div className="panel-resize-handle" onPointerDown={e => resize('rail', e)} />}{!railHidden && <MetricsPanel />}</div><MobileNav />{selectedTask && <div className="task-details-backdrop" onMouseDown={() => setSelectedTaskId(null)}><div className="task-details-dialog" onMouseDown={e => e.stopPropagation()}><TaskDetails task={selectedTask} /></div></div>}</div>;
 }
