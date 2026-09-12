@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useTasks } from '../../hooks/useTasks';
 import { useAppState } from '../../hooks/useAppState';
 import { getTaskCategory, getUniqueTasks } from '../../utils/taskUtils';
@@ -12,6 +12,7 @@ export default function TaskList() {
   const { filter, sortBy, setSortBy, searchQuery, selectedTaskId, setSelectedTaskId, setFilter } = useAppState();
   const [selectedTasks, setSelectedTasks] = React.useState(new Set());
   const [isBulkSaving, setIsBulkSaving] = React.useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
   
   const toggleSelect = (id) => {
     setSelectedTasks(prev => {
@@ -27,7 +28,9 @@ export default function TaskList() {
     if (isBulkSaving || selectedTasks.size === 0) return;
     setIsBulkSaving(true);
     try {
-      await Promise.all(Array.from(selectedTasks).map(id => updateStatus({ id, status: filter === 'COMPLETED' ? 'PENDING' : 'COMPLETED' })));
+      await Promise.all(Array.from(selectedTasks)
+        .filter(id => globalTasks.find(task => task.id === id)?.status !== 'COMPLETED')
+        .map(id => updateStatus({ id, status: 'COMPLETED' })));
     } catch (e) {
       console.error('Bulk update error:', e);
     } finally {
@@ -39,6 +42,12 @@ export default function TaskList() {
   const handleBulkDelete = async (e) => {
     if (e) e.preventDefault();
     if (isBulkSaving || selectedTasks.size === 0) return;
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmBulkDelete = async (e) => {
+    if (e) e.preventDefault();
+    if (isBulkSaving || selectedTasks.size === 0) return;
     setIsBulkSaving(true);
     try {
       await Promise.all(Array.from(selectedTasks).map(id => deleteTask(id)));
@@ -47,13 +56,12 @@ export default function TaskList() {
     } finally {
       setIsBulkSaving(false);
       setSelectedTasks(new Set());
+      setIsDeleteConfirmOpen(false);
     }
   };
 
   const unique = useMemo(() => getUniqueTasks(globalTasks), [globalTasks]);
   const senders = useMemo(() => [...new Map(unique.map(task => [senderKey(task), task.sender])).entries()], [unique]);
-
-  if (filter === 'SENDERS') return <main className="main-workspace"><header className="workspace-header"><div><p className="eyebrow">ORGANIZE</p><h1>Sender groups</h1><p>Browse every task by the person or WhatsApp group it came from.</p></div></header><div className="sender-grid">{senders.map(([key, name]) => { const count = unique.filter(task => senderKey(task) === key && task.status !== 'COMPLETED').length; return <button key={key} className="sender-card" onClick={() => setFilter(key)}><span>{(name || '?').slice(0, 2).toUpperCase()}</span><div><strong>{name || 'Unknown sender'}</strong><small>{count} open {count === 1 ? 'task' : 'tasks'}</small></div><b>›</b></button>; })}</div></main>;
 
   const tasks = unique.filter(task => {
     const category = getTaskCategory(task);
@@ -71,18 +79,40 @@ export default function TaskList() {
   const overdue = tasks.filter(task => getTaskCategory(task) === 'OVERDUE' && task.status !== 'COMPLETED');
   const dueToday = tasks.filter(task => getTaskCategory(task) === 'TODAY' && task.status !== 'COMPLETED');
   const title = { TODAY: 'Today', ALL: 'All tasks', UPCOMING: 'Upcoming', OVERDUE: 'Overdue', HIGH_PRIORITY: 'High priority', COMPLETED: 'Completed' }[filter] || senders.find(([key]) => key === filter)?.[1] || 'Tasks';
+  const displayedTaskIds = useMemo(() => new Set(tasks.map(task => task.id)), [tasks]);
+  const allDisplayedSelected = tasks.length > 0 && tasks.every(task => selectedTasks.has(task.id));
+  const selectAllRef = useRef(null);
+
+  useEffect(() => {
+    setSelectedTasks(previous => {
+      const next = new Set([...previous].filter(id => displayedTaskIds.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [displayedTaskIds]);
+
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = selectedTasks.size > 0 && !allDisplayedSelected;
+  }, [selectedTasks, allDisplayedSelected]);
+
+  const toggleSelectAll = () => {
+    setSelectedTasks(allDisplayedSelected ? new Set() : new Set(tasks.map(task => task.id)));
+  };
+  if (filter === 'SENDERS') return <main className="main-workspace"><header className="workspace-header"><div><p className="eyebrow">ORGANIZE</p><h1>Sender groups</h1><p>Browse every task by the person or WhatsApp group it came from.</p></div></header><div className="sender-grid">{senders.map(([key, name]) => { const count = unique.filter(task => senderKey(task) === key && task.status !== 'COMPLETED').length; return <button key={key} className="sender-card" onClick={() => setFilter(key)}><span>{(name || '?').slice(0, 2).toUpperCase()}</span><div><strong>{name || 'Unknown sender'}</strong><small>{count} open {count === 1 ? 'task' : 'tasks'}</small></div><b>›</b></button>; })}</div></main>;
   const rows = list => list.map(task => <TaskRow key={task.id} task={task} isSelected={selectedTaskId === task.id} isChecked={selectedTasks.has(task.id)} onToggleCheck={() => toggleSelect(task.id)} onSelect={setSelectedTaskId} />);
 
   return <main className="main-workspace"><header className="workspace-header"><div>{filter === 'TODAY' ? <><p className="eyebrow">YOUR FOCUS</p><h1>{greeting()}, Keerthivasan.</h1><p>Here’s what deserves your attention today.</p></> : <><p className="eyebrow">TASKS</p><h1>{title}</h1><p>Your WhatsApp tasks, arranged for action.</p></>}</div><div className="workspace-controls"><select value={sortBy} onChange={event => setSortBy(event.target.value)}><option value="deadline">Deadline first</option><option value="priority">Priority first</option><option value="recent">Recently added</option></select></div></header><section className="task-content">
+  {tasks.length > 0 && <label className="select-all-control"><input ref={selectAllRef} type="checkbox" checked={allDisplayedSelected} onChange={toggleSelectAll} /> <span>Select all</span></label>}
   {selectedTasks.size > 0 && (
-    <div className="bulk-action-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', padding: '12px 16px', background: 'var(--surface-color, #fff)', borderBottom: '1px solid var(--border-color, #eaeaea)', position: 'sticky', top: 0, zIndex: 10, alignItems: 'center', justifyContent: 'space-between', borderRadius: '8px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+    <div className="bulk-action-bar">
       <span style={{ fontWeight: 500 }}>{selectedTasks.size} task{selectedTasks.size > 1 ? 's' : ''} selected</span>
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <button type="button" className="primary-button" style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', background: 'var(--primary-color, #0f172a)', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }} disabled={isBulkSaving} onClick={handleBulkComplete}>{isBulkSaving ? 'Saving...' : filter === 'COMPLETED' ? 'Mark as pending' : 'Mark as completed'}</button>
-        <button type="button" className="secondary-button" style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid #ff4d4f', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }} disabled={isBulkSaving} onClick={handleBulkDelete}>Delete</button>
+      <div className="bulk-action-buttons">
+        <button type="button" className="primary-button bulk-button" disabled={isBulkSaving} onClick={handleBulkComplete}>{isBulkSaving ? 'Saving...' : 'Mark as completed'}</button>
+        <button type="button" className="secondary-button bulk-button bulk-delete-button" disabled={isBulkSaving} onClick={handleBulkDelete}>Delete</button>
       </div>
     </div>
   )}
-  {isLoading ? <div className="empty-state">Loading your tasks…</div> : isError ? <div className="empty-state">Couldn’t load tasks. Please refresh and try again.</div> : tasks.length === 0 ? <div className="empty-state"><strong>Nothing here.</strong><span>{filter === 'TODAY' ? 'You’re clear for today.' : 'No tasks match this view.'}</span></div> : filter === 'TODAY' ? <>{overdue.length > 0 && <TaskSection label="Overdue" count={overdue.length} danger>{rows(overdue)}</TaskSection>}{dueToday.length > 0 && <TaskSection label="Due today" count={dueToday.length}>{rows(dueToday)}</TaskSection>}{overdue.length === 0 && dueToday.length === 0 && <div className="empty-state">You’re clear for today.</div>}</> : <div className="task-list">{rows(tasks)}</div>}</section></main>;
+  {isLoading ? <div className="empty-state">Loading your tasks…</div> : isError ? <div className="empty-state">Couldn’t load tasks. Please refresh and try again.</div> : tasks.length === 0 ? <div className="empty-state"><strong>Nothing here.</strong><span>{filter === 'TODAY' ? 'You’re clear for today.' : 'No tasks match this view.'}</span></div> : filter === 'TODAY' ? <>{overdue.length > 0 && <TaskSection label="Overdue" count={overdue.length} danger>{rows(overdue)}</TaskSection>}{dueToday.length > 0 && <TaskSection label="Due today" count={dueToday.length}>{rows(dueToday)}</TaskSection>}{overdue.length === 0 && dueToday.length === 0 && <div className="empty-state">You’re clear for today.</div>}</> : <div className="task-list">{rows(tasks)}</div>}
+  {isDeleteConfirmOpen && <div className="bulk-confirm-backdrop" role="presentation" onMouseDown={() => !isBulkSaving && setIsDeleteConfirmOpen(false)}><div className="bulk-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="bulk-delete-title" onMouseDown={event => event.stopPropagation()}><h2 id="bulk-delete-title">Delete selected tasks?</h2><p>Are you sure you want to delete {selectedTasks.size} selected task{selectedTasks.size === 1 ? '' : 's'}? This action cannot be undone.</p><div className="bulk-confirm-actions"><button type="button" className="secondary-button bulk-button" disabled={isBulkSaving} onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</button><button type="button" className="bulk-button bulk-confirm-delete" disabled={isBulkSaving} onClick={confirmBulkDelete}>{isBulkSaving ? 'Deleting...' : 'Delete'}</button></div></div></div>}
+  </section></main>;
 }
 function TaskSection({ label, count, danger, children }) { return <section className={`task-section ${danger ? 'danger-section' : ''}`}><div className="section-heading"><span>{label}</span><b>{count}</b></div><div className="task-list">{children}</div></section>; }
